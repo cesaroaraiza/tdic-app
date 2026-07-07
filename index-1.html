@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parts Tracker</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --border: #e4e4e0;
+    --border-strong: #c8c8c2;
+    --text: #1a1a18;
+    --text-2: #5a5a56;
+    --text-3: #9a9a94;
+    --green: #2d6a3f;
+    --green-bg: #eaf3ed;
+    --blue: #1a4e8a;
+    --blue-bg: #e8f0fb;
+    --red: #8a1a1a;
+    --red-bg: #fbeaea;
+    --amber: #7a4a00;
+    --amber-bg: #fef3e2;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+  /* Login screen */
+  #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; max-width: 360px; width: 100%; text-align: center; }
+  .login-card h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .login-card p { color: var(--text-2); font-size: 13px; margin-bottom: 28px; }
+  .login-card .field { text-align: left; margin-bottom: 14px; }
+  .login-card .field label { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .login-card .field input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg); color: var(--text); letter-spacing: 0.05em; }
+  .login-card .field input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+  .btn-login { width: 100%; padding: 10px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+  .btn-login:hover { opacity: 0.85; }
+  .login-error { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+  /* Setup screen */
+  #setup-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .setup-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; max-width: 500px; width: 100%; }
+  .setup-card h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .setup-card p { color: var(--text-2); margin-bottom: 28px; font-size: 13px; line-height: 1.7; }
+  .setup-steps { margin-bottom: 28px; }
+  .setup-step { display: flex; gap: 12px; margin-bottom: 16px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .step-text { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+  .step-text strong { color: var(--text); font-weight: 500; }
+  .step-text a { color: var(--blue); text-decoration: none; }
+  .step-text code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-family: 'Courier New', monospace; word-break: break-all; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .field input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; }
+  .field input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+  .btn-connect { width: 100%; padding: 10px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-connect:hover { opacity: 0.85; }
+  .error-msg { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+  /* Main app */
+  #app { display: none; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 52px; position: sticky; top: 0; z-index: 10; }
+  .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .user-pill { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; }
+  .user-pill input { border: none; background: transparent; font-size: 12px; color: var(--text-2); width: 110px; outline: none; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #2d6a3f; flex-shrink: 0; }
+
+  .main { max-width: 980px; margin: 0 auto; padding: 24px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 4px; }
+  .stat-val { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+
+  /* Tabs */
+  .tabs-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; flex: 1; overflow-x: auto; }
+  .tab { flex: 1; min-width: 80px; padding: 8px 10px; font-size: 13px; font-weight: 500; border: none; background: transparent; color: var(--text-2); cursor: pointer; border-radius: calc(var(--radius) - 4px); transition: background 0.15s, color 0.15s; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; position: relative; }
+  .tab.active { background: var(--text); color: #fff; }
+  .tab:hover:not(.active) { background: var(--bg); color: var(--text); }
+  .tab-label { pointer-events: none; }
+  .tab-edit-hint { font-size: 9px; color: var(--text-3); position: absolute; bottom: 1px; right: 4px; display: none; }
+  .tab:hover .tab-edit-hint { display: block; }
+  .tab.active .tab-edit-hint { display: none; }
+  .tab-input { font-size: 13px; font-weight: 500; border: none; background: var(--surface); color: var(--text); outline: 1px solid var(--border-strong); border-radius: 4px; padding: 2px 6px; width: 100%; text-align: center; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .form-field { margin-bottom: 12px; }
+  .form-field label { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 5px; }
+  .form-field input, .form-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
+  .form-field input:focus, .form-field select:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+  .form-field input.invalid { border-color: var(--red); background: var(--red-bg); }
+  .form-field .hint { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .form-field .hint.error { color: var(--red); }
+
+  .src-toggle { display: flex; gap: 6px; margin-bottom: 14px; }
+  .src-btn { padding: 5px 16px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--text-2); cursor: pointer; }
+  .src-btn.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+  .btn { padding: 8px 18px; font-size: 13px; font-weight: 500; border: none; border-radius: var(--radius-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-in { background: var(--green-bg); color: var(--green); }
+  .btn-in:hover { background: #d4eadb; }
+  .btn-move { background: var(--blue-bg); color: var(--blue); }
+  .btn-move:hover { background: #d4e4f7; }
+  .btn-out { background: var(--red-bg); color: var(--red); }
+  .btn-out:hover { background: #f7d4d4; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-2); }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn-danger { background: var(--red-bg); color: var(--red); }
+  .btn-danger:hover { background: #f7d4d4; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--bg); padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .b-in { background: var(--green-bg); color: var(--green); }
+  .b-move { background: var(--blue-bg); color: var(--blue); }
+  .b-out { background: var(--red-bg); color: var(--red); }
+
+  .qty-pos { color: var(--green); font-weight: 600; }
+  .qty-neg { color: var(--red); font-weight: 600; }
+  .qty-neu { color: var(--text-2); }
+
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+  .empty { text-align: center; padding: 40px; color: var(--text-3); font-size: 13px; }
+  .loading { text-align: center; padding: 32px; color: var(--text-3); font-size: 13px; }
+
+  .search { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface); color: var(--text); margin-bottom: 12px; }
+  .search:focus { outline: none; border-color: var(--border-strong); }
+
+  .filter-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filter-btn { padding: 4px 12px; font-size: 12px; border: 1px solid var(--border); border-radius: 20px; background: transparent; color: var(--text-2); cursor: pointer; }
+  .filter-btn.active { background: var(--text); color: #fff; border-color: var(--text); }
+
+  .loc-pill { display: inline-block; font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin: 1px; }
+  .stock-qty { font-size: 18px; font-weight: 600; }
+
+  .btn-del { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 13px; padding: 3px 5px; border-radius: 4px; }
+  .btn-del:hover { color: var(--red); background: var(--red-bg); }
+
+  /* Settings panel */
+  .settings-section { margin-bottom: 28px; }
+  .settings-section h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .settings-section p { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
+  .loc-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 36px; }
+  .loc-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 500; }
+  .loc-tag button { background: none; border: none; cursor: pointer; color: var(--text-3); font-size: 12px; padding: 0; line-height: 1; }
+  .loc-tag button:hover { color: var(--red); }
+  .add-loc-row { display: flex; gap: 8px; }
+  .add-loc-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
+  .add-loc-row input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+
+  .tab-label-list { display: flex; flex-direction: column; gap: 8px; }
+  .tab-label-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; }
+  .tab-label-key { font-size: 11px; color: var(--text-3); width: 80px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+  .tab-label-input { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: var(--bg); color: var(--text); }
+  .tab-label-input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+
+  .settings-icon { font-size: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .settings-icon:hover { background: var(--surface); }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; margin-bottom: 16px; transition: border-color 0.15s; }
+  .upload-zone:hover { border-color: var(--border-strong); }
+  .upload-zone.dragover { border-color: var(--blue); background: var(--blue-bg); }
+  .upload-zone p { font-size: 13px; color: var(--text-3); margin: 6px 0 0; }
+  .upload-zone strong { font-size: 13px; color: var(--text-2); }
+  .preview-table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; margin-bottom: 12px; max-height: 260px; }
+  .preview-table-wrap table { font-size: 12px; }
+  .preview-table-wrap th { font-size: 11px; }
+  .preview-row-err td { background: var(--red-bg) !important; }
+  .bulk-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bulk-status { font-size: 12px; color: var(--text-3); }
+  .divider-or { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--text-3); font-size: 12px; }
+  .divider-or::before, .divider-or::after { content:''; flex:1; border-top: 1px solid var(--border); }
+
+  datalist { display: none; }
+
+  @media (max-width: 620px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
+    .main { padding: 14px; }
+    .tabs { gap: 1px; }
+    .tab { min-width: 60px; font-size: 12px; padding: 7px 6px; }
+  }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>📦 Parts tracker</h1>
+    <p>Enter the access password to continue.</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkLogin()" />
+    </div>
+    <button class="btn-login" onclick="checkLogin()">Enter →</button>
+    <div class="login-error" id="login-error">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <h1>📦 Parts tracker setup</h1>
+    <p>Connect to a free Supabase database so your whole team shares the same data. Do this once — after that everyone just opens the URL.</p>
+    <div class="setup-steps">
+      <div class="setup-step">
+        <div class="step-num">1</div>
+        <div class="step-text">Go to <a href="https://supabase.com" target="_blank">supabase.com</a>, create a free account, and start a new project.</div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">2</div>
+        <div class="step-text">Open the <strong>SQL Editor</strong> and run this to create both tables:<br><br>
+          <code>create table movements (id bigserial primary key, type text, part text, qty int, from_loc text, to_loc text, ref text, source_type text, notes text, logged_by text, job_number text, client_name text, created_at timestamptz default now());<br><br>create table settings (key text primary key, value text);</code>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">3</div>
+        <div class="step-text">Go to <strong>Project Settings → API</strong> and copy your <strong>Project URL</strong> and <strong>anon public key</strong>.</div>
+      </div>
+      <div class="setup-step">
+        <div class="step-num">4</div>
+        <div class="step-text">Paste them below and click Connect. Share this HTML file with your team.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Supabase project URL</label>
+      <input id="sb-url" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Supabase anon key</label>
+      <input id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" />
+    </div>
+    <button class="btn-connect" onclick="connect()">Connect →</button>
+    <div class="error-msg" id="connect-error">Could not connect. Check your URL and key and try again.</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo">📦 Parts tracker</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="user-pill">
+        <span style="font-size:11px;color:var(--text-3)">You:</span>
+        <input id="user-name" placeholder="Your name" />
+      </div>
+      <span class="sync-dot" title="Connected"></span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Unique parts</div><div class="stat-val" id="s-parts">—</div></div>
+      <div class="stat"><div class="stat-label">Total movements</div><div class="stat-val" id="s-moves">—</div></div>
+      <div class="stat"><div class="stat-label">Today</div><div class="stat-val" id="s-today">—</div></div>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tabs" id="tabs-row">
+        <button class="tab active" data-tab="in" ondblclick="startRenameTab(this)">
+          <span class="tab-label" id="label-in">↓ In</span>
+          <span class="tab-edit-hint">dbl-click to rename</span>
+        </button>
+        <button class="tab" data-tab="move" ondblclick="startRenameTab(this)">
+          <span class="tab-label" id="label-move">⇄ Move</span>
+          <span class="tab-edit-hint">dbl-click to rename</span>
+        </button>
+        <button class="tab" data-tab="out" ondblclick="startRenameTab(this)">
+          <span class="tab-label" id="label-out">↑ Out</span>
+          <span class="tab-edit-hint">dbl-click to rename</span>
+        </button>
+        <button class="tab" data-tab="stock" ondblclick="startRenameTab(this)">
+          <span class="tab-label" id="label-stock">Stock levels</span>
+          <span class="tab-edit-hint">dbl-click to rename</span>
+        </button>
+        <button class="tab" data-tab="history" ondblclick="startRenameTab(this)">
+          <span class="tab-label" id="label-history">History</span>
+          <span class="tab-edit-hint">dbl-click to rename</span>
+        </button>
+      </div>
+      <div class="settings-icon" onclick="switchTab('settings')" title="Settings">⚙️</div>
+    </div>
+
+    <!-- IN -->
+    <div id="tab-in" class="panel active">
+
+      <!-- BULK UPLOAD -->
+      <div class="form-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">Bulk upload</div>
+            <div style="font-size:12px;color:var(--text-3)">Upload an Excel or CSV file to log multiple parts at once.</div>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="downloadTemplate()">⬇ Download template</button>
+        </div>
+
+        <div class="upload-zone" id="upload-zone" onclick="$('file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
+          <div style="font-size:22px">📂</div>
+          <strong>Click to browse or drag & drop</strong>
+          <p>Excel (.xlsx) or CSV — columns: Part #, Source Type, Visa#/Shipment Date, Location, Quantity, Job #, End User</p>
+        </div>
+        <input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(this.files[0])" />
+
+        <div id="preview-section" style="display:none">
+          <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:var(--text)" id="preview-title"></div>
+          <div class="preview-table-wrap">
+            <table>
+              <thead><tr>
+                <th>#</th><th>Part #</th><th>Source</th><th>Visa/Date</th><th>Location</th><th>Qty</th><th>Job #</th><th>End User</th><th>Status</th>
+              </tr></thead>
+              <tbody id="preview-tbody"></tbody>
+            </table>
+          </div>
+          <div class="bulk-actions">
+            <button class="btn btn-in" id="bulk-log-btn" onclick="bulkLog()">↓ Log all valid entries</button>
+            <button class="btn btn-sm btn-ghost" onclick="clearUpload()">✕ Clear</button>
+            <span class="bulk-status" id="bulk-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider-or">or log manually</div>
+      <div class="form-card">
+        <div class="form-field">
+          <label>Source type</label>
+          <div class="src-toggle">
+            <button class="src-btn active" id="src-visa" onclick="setSource('visa')">Visa #</button>
+            <button class="src-btn" id="src-ship" onclick="setSource('shipment')">Shipment date</button>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field"><label id="src-label">Visa #</label><input id="f-source" placeholder="" /></div>
+          <div class="form-field">
+            <label>Destination location</label>
+            <input id="f-in-to" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+            <div class="hint error" id="f-in-to-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-in-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity received</label><input id="f-in-qty" type="number" min="1" value="1" /></div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field"><label>Job number</label><input id="f-in-job" placeholder="" /></div>
+          <div class="form-field"><label>End user</label><input id="f-in-client" placeholder="" /></div>
+        </div>
+        <div class="form-field"><label>Notes (optional)</label><input id="f-in-notes" placeholder="Any additional info" /></div>
+        <button class="btn btn-in" onclick="logIn()">↓ Log arrival</button>
+      </div>
+    </div>
+
+    <!-- MOVE -->
+    <div id="tab-move" class="panel">
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-mv-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity moving</label><input id="f-mv-qty" type="number" min="1" value="1" /></div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field">
+            <label>From location</label>
+            <input id="f-mv-from" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+            <div class="hint error" id="f-mv-from-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+          </div>
+          <div class="form-field">
+            <label>To location</label>
+            <input id="f-mv-to" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+            <div class="hint error" id="f-mv-to-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+          </div>
+        </div>
+        <div class="form-field"><label>Notes (optional)</label><input id="f-mv-notes" placeholder="Reason for move, etc." /></div>
+        <button class="btn btn-move" onclick="logMove()">⇄ Log move</button>
+      </div>
+    </div>
+
+    <!-- OUT -->
+    <div id="tab-out" class="panel">
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-field"><label>Packing List #</label><input id="f-out-order" placeholder="" /></div>
+          <div class="form-field">
+            <label>From location</label>
+            <input id="f-out-from" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+            <div class="hint error" id="f-out-from-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-out-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity out</label><input id="f-out-qty" type="number" min="1" value="1" /></div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-field"><label>Job number</label><input id="f-out-job" placeholder="" /></div>
+          <div class="form-field"><label>End user</label><input id="f-out-client" placeholder="" /></div>
+        </div>
+        <div class="form-field"><label>Notes (optional)</label><input id="f-out-notes" placeholder="Destination, customer, etc." /></div>
+        <button class="btn btn-out" onclick="logOut()">↑ Log order out</button>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div id="tab-stock" class="panel">
+      <input class="search" id="stock-search" placeholder="Search part number..." oninput="renderStock()" />
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Part number</th>
+            <th>Total qty</th>
+            <th>By location</th>
+          </tr></thead>
+          <tbody id="stock-tbody"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="panel">
+      <div class="filter-row">
+        <button class="filter-btn active" onclick="setHFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setHFilter('in',this)">In</button>
+        <button class="filter-btn" onclick="setHFilter('move',this)">Move</button>
+        <button class="filter-btn" onclick="setHFilter('out',this)">Out</button>
+      </div>
+      <input class="search" id="hist-search" placeholder="Search part, order #, location..." oninput="renderHistory()" />
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Type</th><th>Part #</th><th>Qty</th><th>From</th><th>To</th><th>Job #</th><th>End User</th><th>Notes</th><th>By</th><th>Date</th><th></th>
+          </tr></thead>
+          <tbody id="hist-tbody"><tr><td colspan="11" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" class="panel">
+      <div class="form-card">
+        <div class="settings-section">
+          <h3>Warehouse locations</h3>
+          <p>Add all valid locations here. The app will only accept these when logging movements.</p>
+          <div class="loc-list" id="loc-list-display"></div>
+          <div class="add-loc-row">
+            <input id="new-loc" placeholder="" onkeydown="if(event.key==='Enter')addLocation()" />
+            <button class="btn btn-sm btn-ghost" onclick="addLocation()">+ Add location</button>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0" />
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0" />
+
+        <div class="settings-section">
+          <h3>History retention</h3>
+          <p>Automatically delete movement history older than the selected period. A confirmation will appear before anything is removed.</p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <select id="retention-period" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg);color:var(--text);">
+              <option value="365">1 year</option>
+              <option value="180">6 months</option>
+              <option value="90">3 months</option>
+              <option value="30">1 month</option>
+            </select>
+            <button class="btn btn-sm btn-ghost" onclick="saveRetention()">Save period</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="auto-cleanup" onchange="saveRetention()" style="width:auto" />
+              Auto-clean on app load
+            </label>
+          </div>
+          <div style="margin-top:14px">
+            <button class="btn btn-sm btn-danger" onclick="triggerCleanup()">🗑 Delete entries older than selected period</button>
+          </div>
+          <div id="cleanup-status" style="font-size:12px;color:var(--text-3);margin-top:8px;display:none"></div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0" />
+
+        <div class="settings-section">
+          <h3>Tab labels</h3>
+          <p>Rename each tab to match your team's terminology. Changes apply once you click Save.</p>
+          <div class="tab-label-list">
+            <div class="tab-label-row">
+              <span class="tab-label-key">Arrivals</span>
+              <input class="tab-label-input" id="tl-in" placeholder="" />
+            </div>
+            <div class="tab-label-row">
+              <span class="tab-label-key">Internal</span>
+              <input class="tab-label-input" id="tl-move" placeholder="" />
+            </div>
+            <div class="tab-label-row">
+              <span class="tab-label-key">Orders</span>
+              <input class="tab-label-input" id="tl-out" placeholder="" />
+            </div>
+            <div class="tab-label-row">
+              <span class="tab-label-key">Inventory</span>
+              <input class="tab-label-input" id="tl-stock" placeholder="" />
+            </div>
+            <div class="tab-label-row">
+              <span class="tab-label-key">Log</span>
+              <input class="tab-label-input" id="tl-history" placeholder="" />
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn btn-sm btn-ghost" onclick="saveTabLabels()">Save labels</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Datalist for location autocomplete -->
+<datalist id="loc-list-dl"></datalist>
+
+<script>
+let SURL='', SKEY='';
+let movements=[];
+let locations=[];
+let tabLabels={ in:'↓ In', move:'⇄ Move', out:'↑ Out', stock:'Stock levels', history:'History' };
+let inSource='visa';
+let hFilter='all';
+let activeTab='in';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; }
+
+// ── SUPABASE ──────────────────────────────────────────────────────────────────
+async function supaFetch(path, opts={}) {
+  const res = await fetch(SURL+'/rest/v1/'+path, {
+    headers:{ 'apikey':SKEY, 'Authorization':'Bearer '+SKEY, 'Content-Type':'application/json', 'Prefer': opts.prefer||'return=representation', ...opts.headers },
+    method: opts.method||'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(!res.ok) throw new Error(await res.text());
+  const t = await res.text(); return t ? JSON.parse(t) : [];
+}
+
+async function getSetting(key){ try{ const r=await supaFetch('settings?key=eq.'+key); return r[0]?.value||null; }catch(e){return null;} }
+async function setSetting(key,value){ await supaFetch('settings', { method:'POST', prefer:'resolution=merge-duplicates,return=representation', body:{key,value} }); }
+
+// ── CONNECT ───────────────────────────────────────────────────────────────────
+async function connect() {
+  SURL=$('sb-url').value.trim().replace(/\/$/,'');
+  SKEY=$('sb-key').value.trim();
+  if(!SURL||!SKEY){ showErr('Please enter both the URL and key.'); return; }
+  try {
+    await supaFetch('movements?limit=1');
+    localStorage.setItem('pt_url',SURL); localStorage.setItem('pt_key',SKEY);
+    $('setup-screen').style.display='none';
+    $('app').style.display='block';
+    await loadAll();
+    setInterval(loadAll, 15000);
+  } catch(e){ showErr('Error: ' + e.message); }
+}
+function showErr(msg){ $('connect-error').textContent=msg; $('connect-error').style.display='block'; }
+
+// ── LOAD ALL ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  await Promise.all([loadMovements(), loadLocations(), loadLabels(), loadRetentionSettings()]);
+  renderAll();
+  await runAutoCleanupIfEnabled();
+}
+
+async function loadMovements() {
+  try { movements = await supaFetch('movements?order=created_at.desc&limit=2000'); } catch(e){}
+}
+
+async function loadLocations() {
+  try {
+    const v = await getSetting('locations');
+    locations = v ? JSON.parse(v) : [];
+    renderLocations();
+    updateDatalist();
+  } catch(e){ locations=[]; }
+}
+
+async function loadLabels() {
+  try {
+    const v = await getSetting('tab_labels');
+    if(v){ const saved=JSON.parse(v); Object.assign(tabLabels,saved); applyTabLabels(); }
+  } catch(e){}
+}
+
+// ── LOCATIONS ─────────────────────────────────────────────────────────────────
+function updateDatalist() {
+  const dl = $('loc-list-dl');
+  dl.innerHTML = locations.map(l=>`<option value="${esc(l)}"></option>`).join('');
+}
+
+function renderLocations() {
+  const list = $('loc-list-display');
+  if(!locations.length){ list.innerHTML='<span style="font-size:12px;color:var(--text-3)">No locations added yet.</span>'; return; }
+  list.innerHTML = locations.map((l,i)=>`
+    <span class="loc-tag">${esc(l)}<button onclick="removeLocation(${i})" title="Remove">✕</button></span>
+  `).join('');
+}
+
+async function addLocation() {
+  const inp=$('new-loc');
+  const val=inp.value.trim();
+  if(!val) return;
+  if(locations.map(l=>l.toLowerCase()).includes(val.toLowerCase())){ inp.value=''; return; }
+  locations.push(val);
+  inp.value='';
+  await setSetting('locations', JSON.stringify(locations));
+  renderLocations(); updateDatalist();
+}
+
+async function removeLocation(i) {
+  if(!confirm('Remove "'+locations[i]+'" from the approved list?')) return;
+  locations.splice(i,1);
+  await setSetting('locations', JSON.stringify(locations));
+  renderLocations(); updateDatalist();
+}
+
+function isValidLoc(val) {
+  if(!locations.length) return true; // if no locations set yet, allow anything
+  return locations.some(l=>l.toLowerCase()===val.toLowerCase());
+}
+
+function validateLoc(input, strict=false) {
+  const errId = input.id+'-err';
+  const errEl = $(errId);
+  if(!errEl) return true;
+  const val = input.value.trim();
+  if(!val){ input.classList.remove('invalid'); errEl.style.display='none'; return true; }
+  if(strict && !isValidLoc(val)){
+    input.classList.add('invalid'); errEl.style.display='block'; return false;
+  } else if(isValidLoc(val)){
+    input.classList.remove('invalid'); errEl.style.display='none'; return true;
+  }
+  return null; // still typing
+}
+
+function checkLoc(inputId) {
+  const inp=$(inputId);
+  const val=inp.value.trim();
+  if(!val){ alert('Location is required.'); inp.focus(); return false; }
+  if(!isValidLoc(val)){
+    inp.classList.add('invalid');
+    $(inputId+'-err').style.display='block';
+    alert('"'+val+'" is not a recognized location. Please pick from the approved list or add it in Settings.');
+    inp.focus(); return false;
+  }
+  return true;
+}
+
+// ── TAB LABELS ────────────────────────────────────────────────────────────────
+const defaultIcons = { in:'↓ ', move:'⇄ ', out:'↑ ', stock:'', history:'' };
+
+function updateTabLabel(key, val) {
+  tabLabels[key] = val || defaultIcons[key]+key.charAt(0).toUpperCase()+key.slice(1);
+  $('label-'+key).textContent = tabLabels[key];
+}
+
+function applyTabLabels() {
+  Object.keys(tabLabels).forEach(k=>{
+    const el=$('label-'+k); if(el) el.textContent=tabLabels[k];
+    const inp=$('tl-'+k); if(inp && document.activeElement!==inp) inp.value=tabLabels[k];
+  });
+}
+
+async function saveTabLabels() {
+  ['in','move','out','stock','history'].forEach(k=>{
+    const v=$('tl-'+k).value.trim();
+    if(v) tabLabels[k]=v;
+  });
+  await setSetting('tab_labels', JSON.stringify(tabLabels));
+  applyTabLabels();
+  alert('Labels saved.');
+}
+
+// Double-click to rename tab inline
+function startRenameTab(tabEl) {
+  const key = tabEl.dataset.tab;
+  const labelEl = tabEl.querySelector('.tab-label');
+  const current = labelEl.textContent;
+  const inp = document.createElement('input');
+  inp.className='tab-input'; inp.value=current; inp.style.width='90px';
+  labelEl.replaceWith(inp);
+  inp.focus(); inp.select();
+  function finish(){
+    const newVal = inp.value.trim()||current;
+    tabLabels[key]=newVal;
+    const newSpan=document.createElement('span');
+    newSpan.className='tab-label'; newSpan.id='label-'+key; newSpan.textContent=newVal;
+    inp.replaceWith(newSpan);
+    const settingsInp=$('tl-'+key); if(settingsInp) settingsInp.value=newVal;
+    setSetting('tab_labels', JSON.stringify(tabLabels));
+  }
+  inp.addEventListener('blur', finish);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); });
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  $('tab-'+name).classList.add('active');
+  activeTab=name;
+  if(btn) btn.classList.add('active');
+}
+
+// wire tab clicks (not dblclick)
+document.querySelectorAll && document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click', function(e){
+      if(e.detail===1) setTimeout(()=>{ if(!this.querySelector('input')) switchTab(this.dataset.tab, this); },200);
+    });
+  });
+});
+
+// ── LOG MOVEMENTS ─────────────────────────────────────────────────────────────
+function by(){ return $('user-name').value.trim()||'unknown'; }
+
+async function logIn() {
+  const part=$('f-in-part').value.trim();
+  const source=$('f-source').value.trim();
+  const to=$('f-in-to').value.trim();
+  const qty=parseInt($('f-in-qty').value)||1;
+  const job=$('f-in-job').value.trim();
+  const client=$('f-in-client').value.trim();
+  const notes=$('f-in-notes').value.trim();
+  if(!part||!source){ alert('Part number and source are required.'); return; }
+  if(!checkLoc('f-in-to')) return;
+  await supaFetch('movements',{method:'POST',body:{type:'in',part,qty,from_loc:inSource==='visa'?'Visa: '+source:'Shipment: '+source,to_loc:to,ref:source,source_type:inSource,notes,logged_by:by(),job_number:job,client_name:client}});
+  ['f-in-part','f-source','f-in-to','f-in-job','f-in-client','f-in-notes'].forEach(id=>$(id).value='');
+  $('f-in-qty').value='1'; $('f-in-part').focus();
+  await loadMovements(); renderAll();
+}
+
+async function logMove() {
+  const part=$('f-mv-part').value.trim();
+  const from=$('f-mv-from').value.trim();
+  const to=$('f-mv-to').value.trim();
+  const qty=parseInt($('f-mv-qty').value)||1;
+  const notes=$('f-mv-notes').value.trim();
+  if(!part){ alert('Part number is required.'); return; }
+  if(!checkLoc('f-mv-from')||!checkLoc('f-mv-to')) return;
+  await supaFetch('movements',{method:'POST',body:{type:'move',part,qty,from_loc:from,to_loc:to,ref:'Internal move',notes,logged_by:by()}});
+  ['f-mv-part','f-mv-from','f-mv-to','f-mv-notes'].forEach(id=>$(id).value='');
+  $('f-mv-qty').value='1';
+  await loadMovements(); renderAll();
+}
+
+async function logOut() {
+  const part=$('f-out-part').value.trim();
+  const order=$('f-out-order').value.trim();
+  const from=$('f-out-from').value.trim();
+  const qty=parseInt($('f-out-qty').value)||1;
+  const job=$('f-out-job').value.trim();
+  const client=$('f-out-client').value.trim();
+  const notes=$('f-out-notes').value.trim();
+  if(!part){ alert('Part number is required.'); return; }
+  if(!checkLoc('f-out-from')) return;
+  await supaFetch('movements',{method:'POST',body:{type:'out',part,qty,from_loc:from,to_loc:order?'Order: '+order:'Customer',ref:order||'—',notes,logged_by:by(),job_number:job,client_name:client}});
+  ['f-out-part','f-out-order','f-out-from','f-out-job','f-out-client','f-out-notes'].forEach(id=>$(id).value='');
+  $('f-out-qty').value='1';
+  await loadMovements(); renderAll();
+}
+
+async function delEntry(id) {
+  if(!confirm('Delete this entry?')) return;
+  await supaFetch('movements?id=eq.'+id,{method:'DELETE',prefer:'return=minimal'});
+  await loadMovements(); renderAll();
+}
+
+function setSource(s) {
+  inSource=s;
+  $('src-visa').classList.toggle('active',s==='visa');
+  $('src-ship').classList.toggle('active',s==='shipment');
+  $('src-label').textContent=s==='visa'?'Visa #':'Shipment date';
+  $('f-source').placeholder=s==='visa'?'e.g. V-10482':'e.g. 2026-06-10';
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function getStock() {
+  const stock={}, locs={};
+  [...movements].reverse().forEach(e=>{
+    if(!stock[e.part]){stock[e.part]=0;locs[e.part]={};}
+    if(e.type==='in'){ stock[e.part]+=e.qty; locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty; }
+    else if(e.type==='out'){ stock[e.part]-=e.qty; locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty; }
+    else if(e.type==='move'){ locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty; locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty; }
+  });
+  return {stock,locs};
+}
+
+function renderStock() {
+  const q=$('stock-search').value.trim().toLowerCase();
+  const {stock,locs}=getStock();
+  const parts=Object.keys(stock).filter(p=>!q||p.toLowerCase().includes(q)).sort();
+  const tbody=$('stock-tbody');
+  if(!parts.length){tbody.innerHTML='<tr><td colspan="3" class="empty">No parts logged yet</td></tr>';return;}
+  tbody.innerHTML=parts.map(p=>{
+    const total=stock[p];
+    const locStr=Object.entries(locs[p]).filter(([,v])=>v>0).map(([l,v])=>`<span class="loc-pill">${esc(l)}: ${v}</span>`).join('')||'<span style="color:var(--text-3);font-size:12px">—</span>';
+    return `<tr><td class="mono">${esc(p)}</td><td><span class="stock-qty ${total>0?'qty-pos':total<0?'qty-neg':'qty-neu'}">${total}</span></td><td>${locStr}</td></tr>`;
+  }).join('');
+}
+
+function setHFilter(f,btn){
+  hFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); renderHistory();
+}
+
+function renderHistory() {
+  const q=$('hist-search').value.trim().toLowerCase();
+  const vis=movements.filter(e=>{
+    const mt=hFilter==='all'||e.type===hFilter;
+    const mq=!q||(e.part||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q)||(e.from_loc||'').toLowerCase().includes(q)||(e.to_loc||'').toLowerCase().includes(q)||(e.job_number||'').toLowerCase().includes(q)||(e.client_name||'').toLowerCase().includes(q);
+    return mt&&mq;
+  });
+  const tbody=$('hist-tbody');
+  if(!vis.length){tbody.innerHTML='<tr><td colspan="11" class="empty">No entries</td></tr>';return;}
+  tbody.innerHTML=vis.map(e=>{
+    const badge=e.type==='in'?'<span class="badge b-in">↓ In</span>':e.type==='move'?'<span class="badge b-move">⇄ Move</span>':'<span class="badge b-out">↑ Out</span>';
+    const qd=e.type==='in'?`<span class="qty-pos">+${e.qty}</span>`:e.type==='out'?`<span class="qty-neg">-${e.qty}</span>`:`<span class="qty-neu">${e.qty}</span>`;
+    const dt=new Date(e.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<tr>
+      <td>${badge}</td>
+      <td class="mono">${esc(e.part)}</td>
+      <td>${qd}</td>
+      <td style="color:var(--text-2);font-size:12px">${esc(e.from_loc||'—')}</td>
+      <td style="color:var(--text-2);font-size:12px">${esc(e.to_loc||'—')}</td>
+      <td style="font-size:12px;color:var(--text-2)">${esc(e.job_number||'—')}</td>
+      <td style="font-size:12px;color:var(--text-2)">${esc(e.client_name||'—')}</td>
+      <td style="font-size:12px;color:var(--text-3)">${esc(e.notes||'—')}</td>
+      <td style="font-size:11px;color:var(--text-3)">${esc(e.logged_by||'—')}</td>
+      <td style="font-size:11px;color:var(--text-3)">${esc(dt)}</td>
+      <td><button class="btn-del" onclick="delEntry(${e.id})" title="Delete">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStats(){
+  const parts=new Set(movements.map(e=>e.part)).size;
+  const today=new Date().toDateString();
+  const todayCount=movements.filter(e=>new Date(e.created_at).toDateString()===today).length;
+  $('s-parts').textContent=parts; $('s-moves').textContent=movements.length; $('s-today').textContent=todayCount;
+}
+
+function renderAll(){ renderStats(); renderStock(); renderHistory(); }
+
+// ── BULK UPLOAD ───────────────────────────────────────────────────────────────
+let bulkRows = [];
+
+function handleDrop(e) {
+  e.preventDefault();
+  $('upload-zone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if(file) handleFile(file);
+}
+
+function handleFile(file) {
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      let rows = [];
+      if(file.name.endsWith('.csv')) {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l=>l.trim());
+        const headers = lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+        for(let i=1;i<lines.length;i++){
+          const vals = lines[i].split(',').map(v=>v.trim().replace(/"/g,''));
+          const row = {};
+          headers.forEach((h,idx)=>row[h]=vals[idx]||'');
+          rows.push(row);
+        }
+      } else {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      }
+      parseBulkRows(rows);
+    } catch(err) { alert('Could not read file: '+err.message); }
+  };
+  if(file.name.endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+function parseBulkRows(rows) {
+  bulkRows = rows.map((r,i) => {
+    // flexible column name matching
+    const get = (...keys) => { for(const k of keys){ for(const rk of Object.keys(r)){ if(rk.toLowerCase().replace(/[^a-z0-9]/g,'').includes(k.toLowerCase().replace(/[^a-z0-9]/g,''))) return String(r[rk]||'').trim(); }} return ''; };
+    const part = get('part');
+    const sourceType = get('sourcetype','source') || 'visa';
+    const visaDate = get('visa','shipment','date','ref');
+    const loc = get('location','loc','dest');
+    const qty = parseInt(get('quantity','qty'))||1;
+    const job = get('job');
+    const endUser = get('enduser','user','client');
+
+    const errors = [];
+    if(!part) errors.push('Missing part #');
+    if(!visaDate) errors.push('Missing Visa#/Date');
+    if(loc && locations.length && !isValidLoc(loc)) errors.push('Unknown location: '+loc);
+
+    return { part, sourceType, visaDate, loc, qty, job, endUser, errors, valid: errors.length===0 };
+  }).filter(r => r.part || r.visaDate); // skip completely empty rows
+
+  renderPreview();
+}
+
+function renderPreview() {
+  if(!bulkRows.length) return;
+  const valid = bulkRows.filter(r=>r.valid).length;
+  const invalid = bulkRows.filter(r=>!r.valid).length;
+  $('preview-title').textContent = bulkRows.length+' rows found — '+valid+' valid'+(invalid?', '+invalid+' with issues':'');
+  $('preview-tbody').innerHTML = bulkRows.map((r,i)=>{
+    const statusCell = r.valid
+      ? '<span style="color:var(--green);font-size:11px">✓ Ready</span>'
+      : '<span style="color:var(--red);font-size:11px">✗ '+r.errors.join(', ')+'</span>';
+    return `<tr class="${r.valid?'':'preview-row-err'}">
+      <td style="color:var(--text-3)">${i+1}</td>
+      <td class="mono">${esc(r.part)}</td>
+      <td style="font-size:11px">${esc(r.sourceType)}</td>
+      <td style="font-size:11px">${esc(r.visaDate)}</td>
+      <td style="font-size:11px">${esc(r.loc)}</td>
+      <td>${r.qty}</td>
+      <td style="font-size:11px">${esc(r.job)}</td>
+      <td style="font-size:11px">${esc(r.endUser)}</td>
+      <td>${statusCell}</td>
+    </tr>`;
+  }).join('');
+  $('bulk-log-btn').textContent = '↓ Log '+valid+' valid entr'+(valid===1?'y':'ies');
+  $('preview-section').style.display = 'block';
+  $('bulk-status').textContent = '';
+}
+
+async function bulkLog() {
+  const valid = bulkRows.filter(r=>r.valid);
+  if(!valid.length){ alert('No valid entries to log.'); return; }
+  const confirmed = confirm('Log '+valid.length+' part entr'+(valid.length===1?'y':'ies')+'?');
+  if(!confirmed) return;
+  $('bulk-log-btn').disabled = true;
+  $('bulk-status').textContent = 'Logging...';
+  let done = 0;
+  for(const r of valid) {
+    const fromLoc = r.sourceType.toLowerCase().includes('ship') ? 'Shipment: '+r.visaDate : 'Visa: '+r.visaDate;
+    await supaFetch('movements', { method:'POST', body:{ type:'in', part:r.part, qty:r.qty, from_loc:fromLoc, to_loc:r.loc, ref:r.visaDate, source_type:r.sourceType, notes:'', logged_by:by(), job_number:r.job, client_name:r.endUser }});
+    done++;
+    $('bulk-status').textContent = 'Logged '+done+' of '+valid.length+'...';
+  }
+  await loadMovements(); renderAll();
+  $('bulk-status').textContent = '✓ All '+done+' entries logged successfully.';
+  $('bulk-log-btn').disabled = false;
+  bulkRows = [];
+  setTimeout(()=>{ $('preview-section').style.display='none'; $('bulk-status').textContent=''; }, 3000);
+}
+
+function clearUpload() {
+  bulkRows = [];
+  $('preview-section').style.display = 'none';
+  $('file-input').value = '';
+}
+
+function downloadTemplate() {
+  const headers = ['Part #','Source Type (visa/shipment)','Visa # or Shipment Date','Location','Quantity','Job #','End User'];
+  const example = ['PN-4821','visa','V-10482','A1','5','JOB-1042','Acme Corp'];
+  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Parts');
+  XLSX.writeFile(wb, 'parts-upload-template.xlsx');
+}
+
+// ── RETENTION / CLEANUP ───────────────────────────────────────────────────────
+async function loadRetentionSettings() {
+  try {
+    const v = await getSetting('retention');
+    if(v){ const s=JSON.parse(v); $('retention-period').value=s.days||'365'; $('auto-cleanup').checked=!!s.auto; }
+  } catch(e){}
+}
+
+async function saveRetention() {
+  const days = $('retention-period').value;
+  const auto = $('auto-cleanup').checked;
+  await setSetting('retention', JSON.stringify({days, auto}));
+  showCleanupStatus('Settings saved.');
+}
+
+async function triggerCleanup(auto=false) {
+  const days = parseInt($('retention-period').value)||365;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  // Count how many would be deleted
+  let count = 0;
+  try {
+    const res = await supaFetch('movements?created_at=lt.'+cutoff.toISOString()+'&select=id');
+    count = res.length;
+  } catch(e){ showCleanupStatus('Error checking records.'); return; }
+
+  if(count === 0){ showCleanupStatus('Nothing to delete — no entries older than '+days+' days.'); return; }
+
+  const periodLabel = {'365':'1 year','180':'6 months','90':'3 months','30':'1 month'}[$('retention-period').value]||days+' days';
+
+  if(!auto) {
+    const confirmed = confirm(
+      '⚠️ You are about to permanently delete '+count+' movement entr'+(count===1?'y':'ies')+' older than '+periodLabel+'.\n\n'+
+      'Cutoff date: '+cutoff.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})+'\n\n'+
+      'This cannot be undone. Are you sure?'
+    );
+    if(!confirmed) return;
+  }
+
+  try {
+    await supaFetch('movements?created_at=lt.'+cutoff.toISOString(), { method:'DELETE', prefer:'return=minimal' });
+    await loadMovements();
+    renderAll();
+    showCleanupStatus('✓ Deleted '+count+' entr'+(count===1?'y':'ies')+' older than '+periodLabel+'.');
+  } catch(e){ showCleanupStatus('Error during cleanup: '+e.message); }
+}
+
+function showCleanupStatus(msg) {
+  const el=$('cleanup-status');
+  if(!el) return;
+  el.textContent=msg; el.style.display='block';
+  setTimeout(()=>{ el.style.display='none'; }, 5000);
+}
+
+async function runAutoCleanupIfEnabled() {
+  try {
+    const v = await getSetting('retention');
+    if(v){ const s=JSON.parse(v); if(s.auto) await triggerCleanup(true); }
+  } catch(e){}
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+const APP_PASSWORD = 'Tdic-6220!'; // ← Change this to your password
+const HARDCODED_URL = 'https://xhkhwddqzdyzltcnvayd.supabase.co';
+const HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhoa2h3ZGRxemR5emx0Y252YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjM3ODAsImV4cCI6MjA5Njc5OTc4MH0.wArObnB2tdJg7V6aBgWRxtMOEelnB0_Q_UL_sCEq5jA';
+
+function checkLogin() {
+  const pw = $('login-pw').value;
+  if(pw === APP_PASSWORD) {
+    sessionStorage.setItem('pt_auth', '1');
+    $('login-screen').style.display = 'none';
+    autoConnect();
+  } else {
+    $('login-error').style.display = 'block';
+    $('login-pw').value = '';
+    $('login-pw').focus();
+  }
+}
+
+async function autoConnect() {
+  SURL = HARDCODED_URL;
+  SKEY = HARDCODED_KEY;
+  $('setup-screen').style.display = 'none';
+  $('app').style.display = 'block';
+  await loadAll();
+  setInterval(loadAll, 15000);
+}
+
+function checkAutoConnect() {
+  autoConnect();
+}
+
+// ── AUTO CONNECT ──────────────────────────────────────────────────────────────
+if(sessionStorage.getItem('pt_auth') === '1') {
+  $('login-screen').style.display = 'none';
+  autoConnect();
+}
+</script>
+</body>
+</html>
