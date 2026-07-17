@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parts Tracker</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Parts Tracker" />
+<meta name="theme-color" content="#1a1a18" />
+<link rel="manifest" href='data:application/json,{"name":"Parts Tracker","short_name":"Parts","display":"standalone","background_color":"%23f7f7f5","theme_color":"%231a1a18","start_url":"./"}' />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --border: #e4e4e0;
+    --border-strong: #c8c8c2;
+    --text: #1a1a18;
+    --text-2: #5a5a56;
+    --text-3: #9a9a94;
+    --green: #2d6a3f;
+    --green-bg: #eaf3ed;
+    --blue: #1a4e8a;
+    --blue-bg: #e8f0fb;
+    --red: #8a1a1a;
+    --red-bg: #fbeaea;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+  #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; max-width: 360px; width: 100%; text-align: center; }
+  .login-card h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .login-card p { color: var(--text-2); font-size: 13px; margin-bottom: 28px; }
+  .login-card .field { text-align: left; margin-bottom: 14px; }
+  .login-card .field label { display: block; font-size: 11px; font-weight: 500; color: var(--text-3); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .login-card .field input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg); color: var(--text); letter-spacing: 0.05em; }
+  .login-card .field input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+  .btn-login { width: 100%; padding: 10px; background: var(--text); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+  .btn-login:hover { opacity: 0.85; }
+  .login-error { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+  #app { display: none; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 52px; position: sticky; top: 0; z-index: 10; }
+  .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+  .main { max-width: 900px; margin: 0 auto; padding: 24px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 4px; }
+  .stat-val { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+
+  .tabs-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; flex: 1; overflow-x: auto; }
+  .tab { flex: 1; min-width: 72px; padding: 8px 10px; font-size: 13px; font-weight: 500; border: none; background: transparent; color: var(--text-2); cursor: pointer; border-radius: calc(var(--radius) - 4px); transition: background 0.15s, color 0.15s; white-space: nowrap; }
+  .tab.active { background: var(--text); color: #fff; }
+  .tab:hover:not(.active) { background: var(--bg); color: var(--text); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-field { margin-bottom: 12px; }
+  .form-field label { display: block; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 5px; }
+  .form-field input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
+  .form-field input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+  .form-field input.invalid { border-color: var(--red); background: var(--red-bg); }
+  .form-field .hint { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .form-field .hint.error { color: var(--red); }
+  .move-pair { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px; }
+  .move-pair-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); margin-bottom: 8px; }
+
+  .btn { padding: 8px 18px; font-size: 13px; font-weight: 500; border: none; border-radius: var(--radius-sm); cursor: pointer; }
+  .btn-in { background: var(--green-bg); color: var(--green); }
+  .btn-in:hover { background: #d4eadb; }
+  .btn-move { background: var(--blue-bg); color: var(--blue); }
+  .btn-move:hover { background: #d4e4f7; }
+  .btn-out { background: var(--red-bg); color: var(--red); }
+  .btn-out:hover { background: #f7d4d4; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-2); }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn-danger { background: var(--red-bg); color: var(--red); }
+  .btn-danger:hover { background: #f7d4d4; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--bg); padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .b-in { background: var(--green-bg); color: var(--green); }
+  .b-move { background: var(--blue-bg); color: var(--blue); }
+  .b-out { background: var(--red-bg); color: var(--red); }
+
+  .qty-pos { color: var(--green); font-weight: 600; }
+  .qty-neg { color: var(--red); font-weight: 600; }
+  .qty-neu { color: var(--text-2); font-weight: 600; }
+
+  .mono { font-family: 'Courier New', monospace; font-size: 12px; }
+  .part-strong { font-family: 'Courier New', monospace; font-size: 13px; font-weight: 600; }
+  .empty { text-align: center; padding: 40px; color: var(--text-3); font-size: 13px; }
+  .loading { text-align: center; padding: 32px; color: var(--text-3); font-size: 13px; }
+
+  .search { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface); color: var(--text); margin-bottom: 12px; }
+  .search:focus { outline: none; border-color: var(--border-strong); }
+
+  .loc-pill { display: inline-block; font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+  .stock-qty { font-size: 18px; font-weight: 600; }
+  .loc-block { margin-bottom: 7px; }
+  .loc-block:last-child { margin-bottom: 0; }
+  .loc-note { font-size: 11px; color: var(--text-2); margin: 2px 0 0 6px; }
+
+  .btn-del { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 13px; padding: 3px 5px; border-radius: 4px; }
+  .btn-del:hover { color: var(--red); background: var(--red-bg); }
+
+  .settings-section { margin-bottom: 28px; }
+  .settings-section h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .settings-section p { font-size: 12px; color: var(--text-3); margin-bottom: 14px; }
+  .loc-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; min-height: 36px; }
+  .loc-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 500; }
+  .loc-tag button { background: none; border: none; cursor: pointer; color: var(--text-3); font-size: 12px; padding: 0; line-height: 1; }
+  .loc-tag button:hover { color: var(--red); }
+  .add-loc-row { display: flex; gap: 8px; }
+  .add-loc-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
+  .add-loc-row input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
+
+  datalist { display: none; }
+
+  @media (max-width: 620px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .main { padding: 14px; }
+    .tab { min-width: 60px; font-size: 12px; padding: 7px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1>Parts tracker</h1>
+    <p>Enter the access password to continue.</p>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-pw" placeholder="Password" onkeydown="if(event.key==='Enter')checkLogin()" />
+    </div>
+    <button class="btn-login" onclick="checkLogin()">Enter</button>
+    <div class="login-error" id="login-error">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="logo">Parts tracker</div>
+    <span class="sync-dot" title="Connected"></span>
+  </div>
+
+  <div class="main">
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Unique parts</div><div class="stat-val" id="s-parts">—</div></div>
+      <div class="stat"><div class="stat-label">Total movements</div><div class="stat-val" id="s-moves">—</div></div>
+      <div class="stat"><div class="stat-label">Today</div><div class="stat-val" id="s-today">—</div></div>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('in',this)">In</button>
+        <button class="tab" onclick="switchTab('move',this)">Move</button>
+        <button class="tab" onclick="switchTab('out',this)">Out</button>
+        <button class="tab" onclick="switchTab('stock',this)">Stock levels</button>
+        <button class="tab" onclick="switchTab('history',this)">History</button>
+      </div>
+      <button class="btn btn-sm btn-ghost" onclick="switchTab('settings')" title="Settings">Settings</button>
+    </div>
+
+    <!-- IN -->
+    <div id="tab-in" class="panel active">
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-in-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity</label><input id="f-in-qty" type="number" min="0" value="0" /></div>
+        </div>
+        <div class="form-field">
+          <label>Location</label>
+          <input id="f-in-loc" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+          <div class="hint error" id="f-in-loc-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+        </div>
+        <div class="form-field"><label>Notes (optional)</label><input id="f-in-notes" placeholder="Any additional info" /></div>
+        <button class="btn btn-in" onclick="logIn()">Log arrival</button>
+      </div>
+    </div>
+
+    <!-- MOVE -->
+    <div id="tab-move" class="panel">
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-mv-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity</label><input id="f-mv-qty" type="number" min="0" value="0" /></div>
+        </div>
+        <div class="move-pair">
+          <div class="move-pair-title">From</div>
+          <div class="form-grid-2">
+            <div class="form-field" style="margin-bottom:0">
+              <label>From location</label>
+              <input id="f-mv-from" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+              <div class="hint error" id="f-mv-from-err" style="display:none">Location not recognized.</div>
+            </div>
+            <div class="form-field" style="margin-bottom:0"><label>From notes (optional)</label><input id="f-mv-fromnote" placeholder="" /></div>
+          </div>
+        </div>
+        <div class="move-pair">
+          <div class="move-pair-title">To</div>
+          <div class="form-grid-2">
+            <div class="form-field" style="margin-bottom:0">
+              <label>To location</label>
+              <input id="f-mv-to" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+              <div class="hint error" id="f-mv-to-err" style="display:none">Location not recognized.</div>
+            </div>
+            <div class="form-field" style="margin-bottom:0"><label>To notes (optional)</label><input id="f-mv-tonote" placeholder="" /></div>
+          </div>
+        </div>
+        <button class="btn btn-move" onclick="logMove()">Log move</button>
+      </div>
+    </div>
+
+    <!-- OUT -->
+    <div id="tab-out" class="panel">
+      <div class="form-card">
+        <div class="form-grid-2">
+          <div class="form-field"><label>Part number</label><input id="f-out-part" placeholder="" /></div>
+          <div class="form-field"><label>Quantity</label><input id="f-out-qty" type="number" min="0" value="0" /></div>
+        </div>
+        <div class="form-field">
+          <label>Location</label>
+          <input id="f-out-loc" placeholder="Type or pick a location" list="loc-list-dl" oninput="validateLoc(this)" onblur="validateLoc(this,true)" autocomplete="off" />
+          <div class="hint error" id="f-out-loc-err" style="display:none">Location not recognized. Add it in Settings first.</div>
+        </div>
+        <div class="form-field"><label>Notes (optional)</label><input id="f-out-notes" placeholder="Any additional info" /></div>
+        <button class="btn btn-out" onclick="logOut()">Log shipment</button>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div id="tab-stock" class="panel">
+      <input class="search" id="stock-search" placeholder="Search part number..." oninput="renderStock()" />
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Part number</th>
+            <th>Total qty</th>
+            <th>By location</th>
+          </tr></thead>
+          <tbody id="stock-tbody"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="panel">
+      <input class="search" id="hist-search" placeholder="Search part or notes..." oninput="renderHistory()" />
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Type</th><th>Part #</th><th>Qty</th><th>Notes</th><th></th>
+          </tr></thead>
+          <tbody id="hist-tbody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" class="panel">
+      <div class="form-card">
+        <div class="settings-section">
+          <h3>Warehouse locations</h3>
+          <p>Add all valid locations here. The app will only accept these when logging movements.</p>
+          <div class="loc-list" id="loc-list-display"></div>
+          <div class="add-loc-row">
+            <input id="new-loc" placeholder="" onkeydown="if(event.key==='Enter')addLocation()" />
+            <button class="btn btn-sm btn-ghost" onclick="addLocation()">+ Add location</button>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0" />
+
+        <div class="settings-section">
+          <h3>Backup &amp; export</h3>
+          <p>Download a full snapshot of all movement history as a CSV file (opens directly in Google Sheets or Excel).</p>
+          <button class="btn btn-sm btn-ghost" onclick="exportBackup()">Download full backup (.csv)</button>
+          <div id="backup-status" style="font-size:12px;color:var(--text-3);margin-top:8px;display:none"></div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:24px 0" />
+
+        <div class="settings-section">
+          <h3>History retention</h3>
+          <p>Automatically delete movement history older than the selected period. A confirmation will appear before anything is removed.</p>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <select id="retention-period" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg);color:var(--text);">
+              <option value="365">1 year</option>
+              <option value="180">6 months</option>
+              <option value="90">3 months</option>
+              <option value="30">1 month</option>
+            </select>
+            <button class="btn btn-sm btn-ghost" onclick="saveRetention()">Save period</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="auto-cleanup" onchange="saveRetention()" style="width:auto" />
+              Auto-clean on app load
+            </label>
+          </div>
+          <div style="margin-top:14px">
+            <button class="btn btn-sm btn-danger" onclick="triggerCleanup()">Delete entries older than selected period</button>
+          </div>
+          <div id="cleanup-status" style="font-size:12px;color:var(--text-3);margin-top:8px;display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<datalist id="loc-list-dl"></datalist>
+
+<script>
+let SURL='', SKEY='';
+let movements=[];
+let locations=[];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; }
+
+async function supaFetch(path, opts={}) {
+  const res = await fetch(SURL+'/rest/v1/'+path, {
+    headers:{ 'apikey':SKEY, 'Authorization':'Bearer '+SKEY, 'Content-Type':'application/json', 'Prefer': opts.prefer||'return=representation', ...opts.headers },
+    method: opts.method||'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(!res.ok) throw new Error(await res.text());
+  const t = await res.text(); return t ? JSON.parse(t) : [];
+}
+
+async function getSetting(key){ try{ const r=await supaFetch('settings?key=eq.'+key); return r[0]?.value||null; }catch(e){return null;} }
+async function setSetting(key,value){ await supaFetch('settings', { method:'POST', prefer:'resolution=merge-duplicates,return=representation', body:{key,value} }); }
+
+async function loadAll() {
+  await Promise.all([loadMovements(), loadLocations(), loadRetentionSettings()]);
+  renderAll();
+  await runAutoCleanupIfEnabled();
+}
+
+async function loadMovements() {
+  try { movements = await supaFetch('movements?order=created_at.desc&limit=2000'); } catch(e){}
+}
+
+async function loadLocations() {
+  try {
+    const v = await getSetting('locations');
+    locations = v ? JSON.parse(v) : [];
+    renderLocations();
+    updateDatalist();
+  } catch(e){ locations=[]; }
+}
+
+// ── LOCATIONS ──
+function updateDatalist() {
+  $('loc-list-dl').innerHTML = locations.map(l=>`<option value="${esc(l)}"></option>`).join('');
+}
+
+function renderLocations() {
+  const list = $('loc-list-display');
+  if(!locations.length){ list.innerHTML='<span style="font-size:12px;color:var(--text-3)">No locations added yet.</span>'; return; }
+  list.innerHTML = locations.map((l,i)=>`<span class="loc-tag">${esc(l)}<button onclick="removeLocation(${i})" title="Remove">✕</button></span>`).join('');
+}
+
+async function addLocation() {
+  const inp=$('new-loc');
+  const val=inp.value.trim();
+  if(!val) return;
+  if(locations.map(l=>l.toLowerCase()).includes(val.toLowerCase())){ inp.value=''; return; }
+  locations.push(val);
+  inp.value='';
+  await setSetting('locations', JSON.stringify(locations));
+  renderLocations(); updateDatalist();
+}
+
+async function removeLocation(i) {
+  if(!confirm('Remove "'+locations[i]+'" from the approved list?')) return;
+  locations.splice(i,1);
+  await setSetting('locations', JSON.stringify(locations));
+  renderLocations(); updateDatalist();
+}
+
+function isValidLoc(val) {
+  if(!locations.length) return true;
+  return locations.some(l=>l.toLowerCase()===val.toLowerCase());
+}
+
+function validateLoc(input, strict=false) {
+  const errEl = $(input.id+'-err');
+  if(!errEl) return true;
+  const val = input.value.trim();
+  if(!val){ input.classList.remove('invalid'); errEl.style.display='none'; return true; }
+  if(strict && !isValidLoc(val)){ input.classList.add('invalid'); errEl.style.display='block'; return false; }
+  else if(isValidLoc(val)){ input.classList.remove('invalid'); errEl.style.display='none'; return true; }
+  return null;
+}
+
+function checkLoc(inputId) {
+  const inp=$(inputId);
+  const val=inp.value.trim();
+  if(!val){ alert('Location is required.'); inp.focus(); return false; }
+  if(!isValidLoc(val)){
+    inp.classList.add('invalid');
+    $(inputId+'-err').style.display='block';
+    alert('"'+val+'" is not a recognized location. Please pick from the approved list or add it in Settings.');
+    inp.focus(); return false;
+  }
+  return true;
+}
+
+// ── TABS ──
+function switchTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  $('tab-'+name).classList.add('active');
+  if(btn && btn.classList.contains('tab')) btn.classList.add('active');
+}
+
+// ── LOG MOVEMENTS ──
+async function logIn() {
+  const part=$('f-in-part').value.trim();
+  const qty=parseInt($('f-in-qty').value)||0;
+  const loc=$('f-in-loc').value.trim();
+  const notes=$('f-in-notes').value.trim();
+  if(!part){ alert('Part number is required.'); return; }
+  if(qty<=0){ alert('Quantity must be greater than 0.'); $('f-in-qty').focus(); return; }
+  if(!checkLoc('f-in-loc')) return;
+  await supaFetch('movements',{method:'POST',body:{type:'in',part,qty,from_loc:'',to_loc:loc,notes}});
+  ['f-in-part','f-in-loc','f-in-notes'].forEach(id=>$(id).value='');
+  $('f-in-qty').value='0'; $('f-in-part').focus();
+  await loadMovements(); renderAll();
+}
+
+async function logMove() {
+  const part=$('f-mv-part').value.trim();
+  const qty=parseInt($('f-mv-qty').value)||0;
+  const from=$('f-mv-from').value.trim();
+  const to=$('f-mv-to').value.trim();
+  const fromNote=$('f-mv-fromnote').value.trim();
+  const toNote=$('f-mv-tonote').value.trim();
+  if(!part){ alert('Part number is required.'); return; }
+  if(qty<=0){ alert('Quantity must be greater than 0.'); $('f-mv-qty').focus(); return; }
+  if(!checkLoc('f-mv-from')||!checkLoc('f-mv-to')) return;
+  const np=[]; if(fromNote) np.push('From: '+fromNote); if(toNote) np.push('To: '+toNote);
+  const notes=np.join(' | ');
+  await supaFetch('movements',{method:'POST',body:{type:'move',part,qty,from_loc:from,to_loc:to,notes}});
+  ['f-mv-part','f-mv-from','f-mv-to','f-mv-fromnote','f-mv-tonote'].forEach(id=>$(id).value='');
+  $('f-mv-qty').value='0';
+  await loadMovements(); renderAll();
+}
+
+async function logOut() {
+  const part=$('f-out-part').value.trim();
+  const qty=parseInt($('f-out-qty').value)||0;
+  const loc=$('f-out-loc').value.trim();
+  const notes=$('f-out-notes').value.trim();
+  if(!part){ alert('Part number is required.'); return; }
+  if(qty<=0){ alert('Quantity must be greater than 0.'); $('f-out-qty').focus(); return; }
+  if(!checkLoc('f-out-loc')) return;
+  await supaFetch('movements',{method:'POST',body:{type:'out',part,qty,from_loc:loc,to_loc:'',notes}});
+  ['f-out-part','f-out-loc','f-out-notes'].forEach(id=>$(id).value='');
+  $('f-out-qty').value='0';
+  await loadMovements(); renderAll();
+}
+
+async function delEntry(id) {
+  if(!confirm('Delete this entry?')) return;
+  await supaFetch('movements?id=eq.'+id,{method:'DELETE',prefer:'return=minimal'});
+  await loadMovements(); renderAll();
+}
+
+// ── RENDER ──
+function getStock() {
+  const stock={}, locs={}, notesByLoc={};
+  [...movements].reverse().forEach(e=>{
+    if(!stock[e.part]){stock[e.part]=0;locs[e.part]={};notesByLoc[e.part]={};}
+    if(e.type==='in'){
+      stock[e.part]+=e.qty;
+      locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty;
+      if(e.notes){ (notesByLoc[e.part][e.to_loc]=notesByLoc[e.part][e.to_loc]||new Set()).add(e.notes); }
+    } else if(e.type==='out'){
+      stock[e.part]-=e.qty;
+      locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty;
+    } else if(e.type==='move'){
+      locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty;
+      locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty;
+    }
+  });
+  return {stock,locs,notesByLoc};
+}
+
+function renderStock() {
+  const q=$('stock-search').value.trim().toLowerCase();
+  const {stock,locs,notesByLoc}=getStock();
+  const parts=Object.keys(stock).filter(p=>!q||p.toLowerCase().includes(q)).sort();
+  const tbody=$('stock-tbody');
+  if(!parts.length){tbody.innerHTML='<tr><td colspan="3" class="empty">No parts logged yet</td></tr>';return;}
+  tbody.innerHTML=parts.map(p=>{
+    const total=stock[p];
+    const entries=Object.entries(locs[p]).filter(([,v])=>v>0);
+    const locStr=entries.length?entries.map(([l,v])=>{
+      const n=notesByLoc[p][l]?[...notesByLoc[p][l]].join('; '):'';
+      return `<div class="loc-block"><span class="loc-pill">${esc(l)}: ${v}</span>${n?`<div class="loc-note">${esc(n)}</div>`:''}</div>`;
+    }).join(''):'<span style="color:var(--text-3);font-size:12px">—</span>';
+    return `<tr><td class="part-strong">${esc(p)}</td><td><span class="stock-qty ${total>0?'qty-pos':total<0?'qty-neg':'qty-neu'}">${total}</span></td><td>${locStr}</td></tr>`;
+  }).join('');
+}
+
+function renderHistory() {
+  const q=$('hist-search').value.trim().toLowerCase();
+  const vis=movements.filter(e=>!q||(e.part||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q));
+  const tbody=$('hist-tbody');
+  if(!vis.length){tbody.innerHTML='<tr><td colspan="5" class="empty">No entries</td></tr>';return;}
+  tbody.innerHTML=vis.map(e=>{
+    const badge=e.type==='in'?'<span class="badge b-in">In</span>':e.type==='move'?'<span class="badge b-move">Move</span>':'<span class="badge b-out">Out</span>';
+    const qd=e.type==='in'?`<span class="qty-pos">+${e.qty}</span>`:e.type==='out'?`<span class="qty-neg">-${e.qty}</span>`:`<span class="qty-neu">${e.qty}</span>`;
+    return `<tr>
+      <td>${badge}</td>
+      <td class="mono">${esc(e.part)}</td>
+      <td>${qd}</td>
+      <td style="font-size:12px;color:var(--text-2)">${esc(e.notes||'—')}</td>
+      <td><button class="btn-del" onclick="delEntry(${e.id})" title="Delete">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStats(){
+  const parts=new Set(movements.map(e=>e.part)).size;
+  const today=new Date().toDateString();
+  const todayCount=movements.filter(e=>new Date(e.created_at).toDateString()===today).length;
+  $('s-parts').textContent=parts; $('s-moves').textContent=movements.length; $('s-today').textContent=todayCount;
+}
+
+function renderAll(){ renderStats(); renderStock(); renderHistory(); }
+
+// ── BACKUP ──
+async function exportBackup() {
+  const statusEl = $('backup-status');
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Preparing backup...';
+  try {
+    let all = [], from = 0, page = 1000;
+    while(true) {
+      const chunk = await supaFetch('movements?order=created_at.asc&limit='+page+'&offset='+from);
+      all = all.concat(chunk);
+      if(chunk.length < page) break;
+      from += page;
+    }
+    if(!all.length){ statusEl.textContent = 'Nothing to back up yet.'; return; }
+    const cols = ['id','type','part','qty','from_loc','to_loc','notes','created_at'];
+    const cell = v => { v = (v ?? '').toString(); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+    const lines = [cols.join(',')].concat(all.map(e => cols.map(c => cell(e[c])).join(',')));
+    const csv = '﻿' + lines.join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const stamp = new Date().toISOString().slice(0,10);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'parts-tracker-backup-'+stamp+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    statusEl.textContent = 'Backed up '+all.length+' entries.';
+    setTimeout(()=>{ statusEl.style.display='none'; }, 5000);
+  } catch(e) {
+    statusEl.textContent = 'Backup failed: '+e.message;
+  }
+}
+
+// ── RETENTION ──
+async function loadRetentionSettings() {
+  try {
+    const v = await getSetting('retention');
+    if(v){ const s=JSON.parse(v); $('retention-period').value=s.days||'365'; $('auto-cleanup').checked=!!s.auto; }
+  } catch(e){}
+}
+
+async function saveRetention() {
+  const days = $('retention-period').value;
+  const auto = $('auto-cleanup').checked;
+  await setSetting('retention', JSON.stringify({days, auto}));
+  showCleanupStatus('Settings saved.');
+}
+
+async function triggerCleanup(auto=false) {
+  const days = parseInt($('retention-period').value)||365;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  let count = 0;
+  try {
+    const res = await supaFetch('movements?created_at=lt.'+cutoff.toISOString()+'&select=id');
+    count = res.length;
+  } catch(e){ showCleanupStatus('Error checking records.'); return; }
+  if(count === 0){ showCleanupStatus('Nothing to delete — no entries older than '+days+' days.'); return; }
+  const periodLabel = {'365':'1 year','180':'6 months','90':'3 months','30':'1 month'}[$('retention-period').value]||days+' days';
+  if(!auto) {
+    const confirmed = confirm(
+      'You are about to permanently delete '+count+' movement entr'+(count===1?'y':'ies')+' older than '+periodLabel+'.\n\n'+
+      'Cutoff date: '+cutoff.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})+'\n\n'+
+      'This cannot be undone. Are you sure?'
+    );
+    if(!confirmed) return;
+  }
+  try {
+    await supaFetch('movements?created_at=lt.'+cutoff.toISOString(), { method:'DELETE', prefer:'return=minimal' });
+    await loadMovements();
+    renderAll();
+    showCleanupStatus('Deleted '+count+' entr'+(count===1?'y':'ies')+' older than '+periodLabel+'.');
+  } catch(e){ showCleanupStatus('Error during cleanup: '+e.message); }
+}
+
+function showCleanupStatus(msg) {
+  const el=$('cleanup-status');
+  if(!el) return;
+  el.textContent=msg; el.style.display='block';
+  setTimeout(()=>{ el.style.display='none'; }, 5000);
+}
+
+async function runAutoCleanupIfEnabled() {
+  try {
+    const v = await getSetting('retention');
+    if(v){ const s=JSON.parse(v); if(s.auto) await triggerCleanup(true); }
+  } catch(e){}
+}
+
+// ── AUTH ──
+const APP_PASSWORD = 'Tdic-6220!';
+const HARDCODED_URL = 'https://xhkhwddqzdyzltcnvayd.supabase.co';
+const HARDCODED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhoa2h3ZGRxemR5emx0Y252YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMjM3ODAsImV4cCI6MjA5Njc5OTc4MH0.wArObnB2tdJg7V6aBgWRxtMOEelnB0_Q_UL_sCEq5jA';
+
+function checkLogin() {
+  const pw = $('login-pw').value;
+  if(pw === APP_PASSWORD) {
+    sessionStorage.setItem('pt_auth', '1');
+    startApp();
+  } else {
+    $('login-error').style.display = 'block';
+    $('login-pw').value = '';
+    $('login-pw').focus();
+  }
+}
+
+async function startApp() {
+  SURL = HARDCODED_URL;
+  SKEY = HARDCODED_KEY;
+  $('login-screen').style.display = 'none';
+  $('app').style.display = 'block';
+  await loadAll();
+  setInterval(loadAll, 15000);
+}
+
+if(sessionStorage.getItem('pt_auth') === '1') {
+  startApp();
+}
+</script>
+</body>
+</html>
