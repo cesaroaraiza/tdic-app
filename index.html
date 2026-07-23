@@ -277,9 +277,9 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Type</th><th>Part #</th><th>Qty</th><th>Location</th><th>Notes</th><th></th>
+            <th>Type</th><th>Part #</th><th>Qty</th><th>Location</th><th>Notes</th><th>Date</th><th></th>
           </tr></thead>
-          <tbody id="hist-tbody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+          <tbody id="hist-tbody"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -563,17 +563,19 @@ function renderHistory() {
   const q=$('hist-search').value.trim().toLowerCase();
   const vis=movements.filter(e=>!q||(e.part||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q)||(e.from_loc||'').toLowerCase().includes(q)||(e.to_loc||'').toLowerCase().includes(q));
   const tbody=$('hist-tbody');
-  if(!vis.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No entries</td></tr>';return;}
+  if(!vis.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No entries</td></tr>';return;}
   tbody.innerHTML=vis.map(e=>{
     const badge=e.type==='in'?'<span class="badge b-in">In</span>':e.type==='move'?'<span class="badge b-move">Move</span>':'<span class="badge b-out">Out</span>';
     const qd=e.type==='in'?`<span class="qty-pos">+${e.qty}</span>`:e.type==='out'?`<span class="qty-neg">-${e.qty}</span>`:`<span class="qty-neu">${e.qty}</span>`;
     const loc=e.type==='in'?esc(e.to_loc||'—'):e.type==='out'?esc(e.from_loc||'—'):esc(e.from_loc||'—')+' &rarr; '+esc(e.to_loc||'—');
+    const dt=e.created_at?new Date(e.created_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
     return `<tr>
       <td>${badge}</td>
       <td class="mono">${esc(e.part)}</td>
       <td>${qd}</td>
       <td style="font-size:12px;color:var(--text-2)">${loc}</td>
       <td style="font-size:12px;color:var(--text-2)">${esc(e.notes||'—')}</td>
+      <td style="font-size:11px;color:var(--text-3);white-space:nowrap">${esc(dt)}</td>
       <td><button class="btn-del" onclick="delEntry(${e.id})" title="Delete">✕</button></td>
     </tr>`;
   }).join('');
