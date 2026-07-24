@@ -444,29 +444,52 @@ function switchTab(name, btn) {
 }
 
 // ── PART LOCATION DROPDOWNS ──
-function getPartLocations(part){
+function parseMoveNotes(s){
+  s=s||'';
+  let fromNote='', toNote='';
+  if(s.indexOf('From: ')===0){
+    const rest=s.slice(6);
+    const i=rest.indexOf(' | To: ');
+    if(i>=0){ fromNote=rest.slice(0,i); toNote=rest.slice(i+7); }
+    else fromNote=rest;
+  } else if(s.indexOf('To: ')===0){
+    toNote=s.slice(4);
+  }
+  return {fromNote,toNote};
+}
+// Each distinct location + note is treated as its own physical spot (bucket).
+function getPartBuckets(part){
   if(!part) return [];
-  const {locs,notesByLoc}=getStock();
-  if(!locs[part]) return [];
-  return Object.entries(locs[part]).filter(([,v])=>v>0).map(([l,v])=>({loc:l, qty:v, notes: notesByLoc[part][l]?[...notesByLoc[part][l]].join('; '):''}));
+  const bal={}, meta={};
+  const key=(loc,note)=>loc+''+(note||'');
+  [...movements].filter(e=>e.part===part).reverse().forEach(e=>{
+    if(e.type==='in'){
+      const k=key(e.to_loc,e.notes); bal[k]=(bal[k]||0)+e.qty; meta[k]={loc:e.to_loc,note:e.notes||''};
+    } else if(e.type==='out'){
+      const k=key(e.from_loc,e.notes); bal[k]=(bal[k]||0)-e.qty; if(!meta[k])meta[k]={loc:e.from_loc,note:e.notes||''};
+    } else if(e.type==='move'){
+      const pn=parseMoveNotes(e.notes);
+      const kf=key(e.from_loc,pn.fromNote); bal[kf]=(bal[kf]||0)-e.qty; if(!meta[kf])meta[kf]={loc:e.from_loc,note:pn.fromNote};
+      const kt=key(e.to_loc,pn.toNote); bal[kt]=(bal[kt]||0)+e.qty; meta[kt]={loc:e.to_loc,note:pn.toNote};
+    }
+  });
+  return Object.keys(bal).filter(k=>bal[k]>0).map(k=>({loc:meta[k].loc,note:meta[k].note,qty:bal[k]}))
+    .sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
 }
 function fillLocSelect(selId, part, emptyPartMsg, noneMsg){
   const sel=$(selId);
   if(!part){ sel.innerHTML='<option value="">'+emptyPartMsg+'</option>'; return; }
-  const opts=getPartLocations(part);
-  if(!opts.length){ sel.innerHTML='<option value="">'+noneMsg+'</option>'; return; }
-  sel.innerHTML='<option value="">Select location</option>'+opts.map(o=>`<option value="${esc(o.loc)}">${esc(o.loc)}${o.notes?' — '+esc(o.notes):''} (${o.qty})</option>`).join('');
+  const buckets=getPartBuckets(part);
+  if(!buckets.length){ sel.innerHTML='<option value="">'+noneMsg+'</option>'; return; }
+  sel.innerHTML='<option value="">Select location</option>'+buckets.map(b=>{
+    const na=esc(b.note).replace(/"/g,'&quot;');
+    return `<option value="${esc(b.loc)}" data-note="${na}">${esc(b.loc)}${b.note?' — '+esc(b.note):''} (${b.qty})</option>`;
+  }).join('');
 }
 function populateMoveFrom(){ fillLocSelect('f-mv-from', $('f-mv-part').value.trim(), 'Type a part number first', 'No stock found for this part'); $('f-mv-fromnote').value=''; }
 function populateOutLoc(){ fillLocSelect('f-out-loc', $('f-out-part').value.trim(), 'Type a part number first', 'No stock found for this part'); }
-function moveFromChanged(){
-  const found=getPartLocations($('f-mv-part').value.trim()).find(o=>o.loc===$('f-mv-from').value);
-  $('f-mv-fromnote').value=found?found.notes:'';
-}
-function outLocChanged(){
-  const found=getPartLocations($('f-out-part').value.trim()).find(o=>o.loc===$('f-out-loc').value);
-  $('f-out-notes').value=found?found.notes:'';
-}
+function moveFromChanged(){ const o=$('f-mv-from').selectedOptions[0]; $('f-mv-fromnote').value=o?(o.dataset.note||''):''; }
+function outLocChanged(){ const o=$('f-out-loc').selectedOptions[0]; $('f-out-notes').value=o?(o.dataset.note||''):''; }
 
 // ── LOG MOVEMENTS ──
 async function logIn() {
