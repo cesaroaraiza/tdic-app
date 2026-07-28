@@ -201,6 +201,7 @@
         </div>
         <div class="form-field"><label>Notes (optional)</label><input id="f-in-notes" placeholder="Any additional info" /></div>
         <button class="btn btn-in" onclick="logIn()">Log arrival</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearIn()" style="margin-left:8px">Clear</button>
       </div>
     </div>
 
@@ -235,6 +236,7 @@
           </div>
         </div>
         <button class="btn btn-move" onclick="logMove()">Log move</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearMove()" style="margin-left:8px">Clear</button>
       </div>
     </div>
 
@@ -253,6 +255,7 @@
         </div>
         <div class="form-field"><label>Notes (optional)</label><input id="f-out-notes" placeholder="Any additional info" /></div>
         <button class="btn btn-out" onclick="logOut()">Log shipment</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearOut()" style="margin-left:8px">Clear</button>
       </div>
     </div>
 
@@ -539,6 +542,26 @@ async function logOut() {
   await loadMovements(); renderAll();
 }
 
+function clearIn(){
+  ['f-in-part','f-in-loc','f-in-notes'].forEach(id=>$(id).value='');
+  $('f-in-qty').value='';
+  $('f-in-loc').classList.remove('invalid');
+  const e=$('f-in-loc-err'); if(e) e.style.display='none';
+  $('f-in-part').focus();
+}
+function clearMove(){
+  ['f-mv-part','f-mv-to','f-mv-fromnote','f-mv-tonote'].forEach(id=>$(id).value='');
+  $('f-mv-qty').value=''; populateMoveFrom();
+  $('f-mv-to').classList.remove('invalid');
+  const e=$('f-mv-to-err'); if(e) e.style.display='none';
+  $('f-mv-part').focus();
+}
+function clearOut(){
+  ['f-out-part','f-out-notes'].forEach(id=>$(id).value='');
+  $('f-out-qty').value=''; populateOutLoc();
+  $('f-out-part').focus();
+}
+
 async function delEntry(id) {
   if(!confirm('Delete this entry?')) return;
   await supaFetch('movements?id=eq.'+id,{method:'DELETE',prefer:'return=minimal'});
@@ -724,7 +747,14 @@ async function startApp() {
   $('login-screen').style.display = 'none';
   $('app').style.display = 'block';
   await loadAll();
-  setInterval(loadAll, 15000);
+  setInterval(()=>{ if(!isEditing()) loadAll(); }, 15000);
+}
+
+// Skip the background refresh while the user is typing or has a dropdown open,
+// so it never closes an open list or wipes what's being entered.
+function isEditing(){
+  const a=document.activeElement;
+  return !!(a && (a.tagName==='INPUT'||a.tagName==='SELECT'||a.tagName==='TEXTAREA') && a.closest && a.closest('.form-card'));
 }
 
 if(sessionStorage.getItem('pt_auth') === '1') {
