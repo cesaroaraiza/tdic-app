@@ -464,7 +464,7 @@ function parseMoveNotes(s){
 function getPartBuckets(part){
   if(!part) return [];
   const bal={}, meta={};
-  const key=(loc,note)=>loc+''+(note||'');
+  const key=(loc,note)=>loc+''+(note||'');
   [...movements].filter(e=>e.part===part).reverse().forEach(e=>{
     if(e.type==='in'){
       const k=key(e.to_loc,e.notes); bal[k]=(bal[k]||0)+e.qty; meta[k]={loc:e.to_loc,note:e.notes||''};
@@ -569,38 +569,31 @@ async function delEntry(id) {
 }
 
 // ── RENDER ──
-function getStock() {
-  const stock={}, locs={}, notesByLoc={};
+// Stock is computed per distinct location + note (a "bucket"), so each spot
+// (e.g. TXFLOOR - skid 7 vs TXFLOOR - skid 11) shows separately.
+function getAllStock() {
+  const totals={}, buckets={};
+  const key=(loc,note)=>loc+''+(note||'');
   [...movements].reverse().forEach(e=>{
-    if(!stock[e.part]){stock[e.part]=0;locs[e.part]={};notesByLoc[e.part]={};}
-    if(e.type==='in'){
-      stock[e.part]+=e.qty;
-      locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty;
-      if(e.notes){ (notesByLoc[e.part][e.to_loc]=notesByLoc[e.part][e.to_loc]||new Set()).add(e.notes); }
-    } else if(e.type==='out'){
-      stock[e.part]-=e.qty;
-      locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty;
-    } else if(e.type==='move'){
-      locs[e.part][e.from_loc]=(locs[e.part][e.from_loc]||0)-e.qty;
-      locs[e.part][e.to_loc]=(locs[e.part][e.to_loc]||0)+e.qty;
-    }
+    if(!totals[e.part]){ totals[e.part]=0; buckets[e.part]={}; }
+    const add=(loc,note,d)=>{ const k=key(loc,note); if(!buckets[e.part][k]) buckets[e.part][k]={loc,note:note||'',qty:0}; buckets[e.part][k].qty+=d; };
+    if(e.type==='in'){ totals[e.part]+=e.qty; add(e.to_loc,e.notes,e.qty); }
+    else if(e.type==='out'){ totals[e.part]-=e.qty; add(e.from_loc,e.notes,-e.qty); }
+    else if(e.type==='move'){ const pn=parseMoveNotes(e.notes); add(e.from_loc,pn.fromNote,-e.qty); add(e.to_loc,pn.toNote,e.qty); }
   });
-  return {stock,locs,notesByLoc};
+  return {totals,buckets};
 }
 
 function renderStock() {
   const q=$('stock-search').value.trim().toLowerCase();
-  const {stock,locs,notesByLoc}=getStock();
-  const parts=Object.keys(stock).filter(p=>!q||p.toLowerCase().includes(q)).sort();
+  const {totals,buckets}=getAllStock();
+  const parts=Object.keys(totals).filter(p=>!q||p.toLowerCase().includes(q)).sort();
   const tbody=$('stock-tbody');
   if(!parts.length){tbody.innerHTML='<tr><td colspan="3" class="empty">No parts logged yet</td></tr>';return;}
   tbody.innerHTML=parts.map(p=>{
-    const total=stock[p];
-    const entries=Object.entries(locs[p]).filter(([,v])=>v>0);
-    const locStr=entries.length?entries.map(([l,v])=>{
-      const n=notesByLoc[p][l]?[...notesByLoc[p][l]].join('; '):'';
-      return `<div class="loc-block"><span class="loc-pill">${esc(l)}: ${v}</span>${n?`<div class="loc-note">${esc(n)}</div>`:''}</div>`;
-    }).join(''):'<span style="color:var(--text-3);font-size:12px">—</span>';
+    const total=totals[p];
+    const bl=Object.values(buckets[p]).filter(b=>b.qty>0).sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
+    const locStr=bl.length?bl.map(b=>`<div class="loc-block"><span class="loc-pill">${esc(b.loc)}: ${b.qty}</span>${b.note?`<div class="loc-note">${esc(b.note)}</div>`:''}</div>`).join(''):'<span style="color:var(--text-3);font-size:12px">—</span>';
     return `<tr><td class="part-strong">${esc(p)}</td><td><span class="stock-qty ${total>0?'qty-pos':total<0?'qty-neg':'qty-neu'}">${total}</span></td><td>${locStr}</td></tr>`;
   }).join('');
 }
