@@ -460,23 +460,11 @@ function parseMoveNotes(s){
   }
   return {fromNote,toNote};
 }
-// Each distinct location + note is treated as its own physical spot (bucket).
+// Each distinct location + note is its own physical spot (bucket).
 function getPartBuckets(part){
   if(!part) return [];
-  const bal={}, meta={};
-  const key=(loc,note)=>loc+''+(note||'');
-  [...movements].filter(e=>e.part===part).reverse().forEach(e=>{
-    if(e.type==='in'){
-      const k=key(e.to_loc,e.notes); bal[k]=(bal[k]||0)+e.qty; meta[k]={loc:e.to_loc,note:e.notes||''};
-    } else if(e.type==='out'){
-      const k=key(e.from_loc,e.notes); bal[k]=(bal[k]||0)-e.qty; if(!meta[k])meta[k]={loc:e.from_loc,note:e.notes||''};
-    } else if(e.type==='move'){
-      const pn=parseMoveNotes(e.notes);
-      const kf=key(e.from_loc,pn.fromNote); bal[kf]=(bal[kf]||0)-e.qty; if(!meta[kf])meta[kf]={loc:e.from_loc,note:pn.fromNote};
-      const kt=key(e.to_loc,pn.toNote); bal[kt]=(bal[kt]||0)+e.qty; meta[kt]={loc:e.to_loc,note:pn.toNote};
-    }
-  });
-  return Object.keys(bal).filter(k=>bal[k]>0).map(k=>({loc:meta[k].loc,note:meta[k].note,qty:bal[k]}))
+  const b=getAllStock().buckets[part]||{};
+  return Object.values(b).filter(x=>x.qty>0)
     .sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
 }
 function fillLocSelect(selId, part, emptyPartMsg, noneMsg){
@@ -570,16 +558,49 @@ async function delEntry(id) {
 
 // ── RENDER ──
 // Stock is computed per distinct location + note (a "bucket"), so each spot
-// (e.g. TXFLOOR - skid 7 vs TXFLOOR - skid 11) shows separately.
+// (e.g. TXFLOOR - skid 7 vs TXFLOOR - skid 11) shows separately. When a part
+// leaves or moves, its note may carry extra text (like an order #), so we match
+// it back to the bucket it came from by its leading note text.
 function getAllStock() {
-  const totals={}, buckets={};
-  const key=(loc,note)=>loc+''+(note||'');
-  [...movements].reverse().forEach(e=>{
-    if(!totals[e.part]){ totals[e.part]=0; buckets[e.part]={}; }
-    const add=(loc,note,d)=>{ const k=key(loc,note); if(!buckets[e.part][k]) buckets[e.part][k]={loc,note:note||'',qty:0}; buckets[e.part][k].qty+=d; };
-    if(e.type==='in'){ totals[e.part]+=e.qty; add(e.to_loc,e.notes,e.qty); }
-    else if(e.type==='out'){ totals[e.part]-=e.qty; add(e.from_loc,e.notes,-e.qty); }
-    else if(e.type==='move'){ const pn=parseMoveNotes(e.notes); add(e.from_loc,pn.fromNote,-e.qty); add(e.to_loc,pn.toNote,e.qty); }
+  const evts=[...movements].reverse(); // oldest first
+  const store={};   // store[part][loc] = [ {note, qty}, ... ]
+  const totals={};
+  const listFor=(part,loc)=>{ store[part]=store[part]||{}; store[part][loc]=store[part][loc]||[]; return store[part][loc]; };
+  const credit=(part,loc,note,q)=>{
+    const L=listFor(part,loc); note=note||'';
+    let b=L.find(x=>x.note===note);
+    if(!b){ b={note,qty:0}; L.push(b); }
+    b.qty+=q;
+  };
+  const debit=(part,loc,note,q)=>{
+    const L=listFor(part,loc); note=note||''; let rem=q;
+    // 1) exact note match with stock
+    const ex=L.find(x=>x.note===note && x.qty>0);
+    if(ex){ const t=Math.min(ex.qty,rem); ex.qty-=t; rem-=t; }
+    // 2) a bucket whose note this note begins with (e.g. note + " ORDER #123"), longest first
+    if(rem>0){
+      const pf=L.filter(x=>x.note && note.indexOf(x.note)===0 && x.qty>0).sort((a,b)=>b.note.length-a.note.length);
+      for(const x of pf){ if(rem<=0) break; const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; }
+    }
+    // 3) otherwise draw down whatever is at this location (oldest first)
+    if(rem>0){
+      for(const x of L){ if(rem<=0) break; if(x.qty>0){ const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; } }
+    }
+    // 4) truly oversold: leave a negative on the note bucket
+    if(rem>0){ let nb=L.find(x=>x.note===note); if(!nb){ nb={note,qty:0}; L.push(nb); } nb.qty-=rem; }
+  };
+  evts.forEach(e=>{
+    if(totals[e.part]===undefined) totals[e.part]=0;
+    if(e.type==='in'){ totals[e.part]+=e.qty; credit(e.part,e.to_loc,e.notes||'',e.qty); }
+    else if(e.type==='out'){ totals[e.part]-=e.qty; debit(e.part,e.from_loc,e.notes||'',e.qty); }
+    else if(e.type==='move'){ const pn=parseMoveNotes(e.notes); debit(e.part,e.from_loc,pn.fromNote||'',e.qty); credit(e.part,e.to_loc,pn.toNote||'',e.qty); }
+  });
+  const buckets={};
+  Object.keys(store).forEach(part=>{
+    buckets[part]={};
+    Object.keys(store[part]).forEach(loc=>{
+      store[part][loc].forEach(b=>{ buckets[part][loc+''+b.note]={loc,note:b.note,qty:b.qty}; });
+    });
   });
   return {totals,buckets};
 }
