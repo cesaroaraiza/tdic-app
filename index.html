@@ -619,24 +619,44 @@ async function delEntry(id) {
 }
 
 // ── RENDER ──
-// Stock is computed per LOCATION only. Notes are optional and purely informational
-// — they never affect the math. A location's total is simply all credits
-// (in / move-to) minus all debits (out / move-from), so it reconciles by
-// construction and a note can never break or block a calculation.
+// Stock is computed per LOCATION. Notes are optional/informational everywhere
+// EXCEPT the legacy catch-all locations in NOTE_SPLIT (just 'TXFLOOR'), where the
+// physical spot was historically written into the note (e.g. "skid 7 - LAB area").
+// For those, we keep the old per-(location+note) breakdown so old stock stays
+// findable — and use the exact/prefix/FIFO matching so an appended order # on a
+// shipment still draws the right spot down. Both models reconcile: a location's
+// buckets always sum to its true net (in − out). NOTE_SPLIT self-cleans as legacy
+// TXFLOOR stock ships out (new stock goes to LAB area / BHP area / skids instead).
+const NOTE_SPLIT = new Set(['TXFLOOR']);
 function getAllStock() {
   const totals={};
-  const store={};   // store[part][loc] = net qty
-  const bump=(part,loc,q)=>{ store[part]=store[part]||{}; store[part][loc]=(store[part][loc]||0)+q; };
-  movements.forEach(e=>{
+  const flat={};    // flat[part][loc]  = net qty  (per-location)
+  const noted={};   // noted[part][loc] = [ {note, qty}, ... ]  (per location+note)
+  const bumpFlat=(p,l,q)=>{ flat[p]=flat[p]||{}; flat[p][l]=(flat[p][l]||0)+q; };
+  const listFor=(p,l)=>{ noted[p]=noted[p]||{}; noted[p][l]=noted[p][l]||[]; return noted[p][l]; };
+  const credit=(p,l,note,q)=>{ const L=listFor(p,l); note=note||''; let b=L.find(x=>x.note===note); if(!b){ b={note,qty:0}; L.push(b); } b.qty+=q; };
+  const debit=(p,l,note,q)=>{
+    const L=listFor(p,l); note=note||''; let rem=q;
+    const ex=L.find(x=>x.note===note && x.qty>0); if(ex){ const t=Math.min(ex.qty,rem); ex.qty-=t; rem-=t; }
+    if(rem>0){ const pf=L.filter(x=>x.note && note.indexOf(x.note)===0 && x.qty>0).sort((a,b)=>b.note.length-a.note.length); for(const x of pf){ if(rem<=0) break; const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; } }
+    if(rem>0){ for(const x of L){ if(rem<=0) break; if(x.qty>0){ const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; } } }
+    if(rem>0){ let nb=L.find(x=>x.note===note); if(!nb){ nb={note,qty:0}; L.push(nb); } nb.qty-=rem; }
+  };
+  const doCredit=(p,l,note,q)=>{ if(NOTE_SPLIT.has(l)) credit(p,l,note,q); else bumpFlat(p,l,q); };
+  const doDebit =(p,l,note,q)=>{ if(NOTE_SPLIT.has(l)) debit(p,l,note,q);  else bumpFlat(p,l,-q); };
+  const evts=[...movements].reverse(); // oldest first (needed for FIFO on note-split locations)
+  evts.forEach(e=>{
     if(totals[e.part]===undefined) totals[e.part]=0;
-    if(e.type==='in'){ totals[e.part]+=e.qty; bump(e.part,e.to_loc,e.qty); }
-    else if(e.type==='out'){ totals[e.part]-=e.qty; bump(e.part,e.from_loc,-e.qty); }
-    else if(e.type==='move'){ bump(e.part,e.from_loc,-e.qty); bump(e.part,e.to_loc,e.qty); }
+    if(e.type==='in'){ totals[e.part]+=e.qty; doCredit(e.part,e.to_loc,e.notes||'',e.qty); }
+    else if(e.type==='out'){ totals[e.part]-=e.qty; doDebit(e.part,e.from_loc,e.notes||'',e.qty); }
+    else if(e.type==='move'){ const pn=parseMoveNotes(e.notes); doDebit(e.part,e.from_loc,pn.fromNote||'',e.qty); doCredit(e.part,e.to_loc,pn.toNote||'',e.qty); }
   });
   const buckets={};
-  Object.keys(store).forEach(part=>{
+  const parts=new Set([...Object.keys(flat),...Object.keys(noted)]);
+  parts.forEach(part=>{
     buckets[part]={};
-    Object.keys(store[part]).forEach(loc=>{ buckets[part][loc]={loc,note:'',qty:store[part][loc]}; });
+    if(flat[part])  Object.keys(flat[part]).forEach(loc=>{ buckets[part][loc]={loc,note:'',qty:flat[part][loc]}; });
+    if(noted[part]) Object.keys(noted[part]).forEach(loc=>{ noted[part][loc].forEach(b=>{ buckets[part][loc+'||'+b.note]={loc,note:b.note,qty:b.qty}; }); });
   });
   return {totals,buckets};
 }
