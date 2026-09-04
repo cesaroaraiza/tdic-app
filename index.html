@@ -51,6 +51,11 @@
   .logo { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
   .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
 
+  .site-switcher { display: flex; gap: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 3px; }
+  .site-pill { padding: 4px 14px; font-size: 12px; font-weight: 500; border: none; background: transparent; color: var(--text-2); cursor: pointer; border-radius: 16px; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+  .site-pill.active { background: var(--text); color: #fff; }
+  .site-pill:hover:not(.active) { color: var(--text); }
+
   .main { max-width: 900px; margin: 0 auto; padding: 24px; }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
@@ -132,6 +137,8 @@
   .loc-tag { display: inline-flex; align-items: center; gap: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 500; }
   .loc-tag button { background: none; border: none; cursor: pointer; color: var(--text-3); font-size: 12px; padding: 0; line-height: 1; }
   .loc-tag button:hover { color: var(--red); }
+  .loc-tag .loc-name { color: var(--text); font-weight: 500; font-size: 12px; }
+  .loc-tag .loc-name:hover { color: var(--blue); text-decoration: underline; }
   .add-loc-row { display: flex; gap: 8px; }
   .add-loc-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg); color: var(--text); }
   .add-loc-row input:focus { outline: none; border-color: var(--border-strong); background: var(--surface); }
@@ -166,6 +173,7 @@
 <div id="app">
   <div class="topbar">
     <div class="logo">Parts tracker</div>
+    <div class="site-switcher" id="site-switcher"></div>
     <span class="sync-dot" title="Connected"></span>
   </div>
 
@@ -291,8 +299,8 @@
     <div id="tab-settings" class="panel">
       <div class="form-card">
         <div class="settings-section">
-          <h3>Warehouse locations</h3>
-          <p>Add all valid locations here. The app will only accept these when logging movements.</p>
+          <h3>Locations &mdash; <span id="loc-site-name">this site</span></h3>
+          <p>Valid locations for the selected site. The app only accepts these when logging here. Use the toggle at the top to switch sites. <span style="color:var(--text-3)">(Prototype: edits here aren't saved to the database yet.)</span></p>
           <div class="loc-list" id="loc-list-display"></div>
           <div class="add-loc-row">
             <input id="new-loc" placeholder="" onkeydown="if(event.key==='Enter')addLocation()" />
@@ -345,6 +353,7 @@
 let SURL='', SKEY='';
 let movements=[];
 let locations=[];
+let sites=[]; let currentSite='main';
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ const d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML; }
@@ -374,16 +383,62 @@ async function loadAll() {
 }
 
 async function loadMovements() {
-  try { movements = await supaFetch('movements?order=created_at.desc&limit=2000'); } catch(e){}
+  // Supabase caps each REST response at 1000 rows, so page through all of them —
+  // otherwise the oldest rows drop off and stock silently undercounts.
+  try {
+    let all=[], from=0, page=1000;
+    while(true){
+      const chunk = await supaFetch('movements?order=created_at.desc&limit='+page+'&offset='+from);
+      all = all.concat(chunk);
+      if(chunk.length < page) break;
+      from += page;
+    }
+    movements = all;
+  } catch(e){}
 }
 
 async function loadLocations() {
   try {
     const v = await getSetting('locations');
-    locations = v ? JSON.parse(v) : [];
-    renderLocations();
-    updateDatalist();
-  } catch(e){ locations=[]; }
+    const flat = v ? JSON.parse(v) : [];
+    if(!sites.length){ sites = buildSites(flat); }
+    else { const m=sites.find(s=>s.id==='main'); if(m) m.locations = flat.filter(l=>l!=='TXFLOOR'); }
+    applySite();
+  } catch(e){ sites=[]; locations=[]; }
+}
+
+// ── SITES (prototype: TXFLOOR promoted to its own site with its own locations) ──
+// Each site owns a location list. A movement belongs to the site that owns its
+// location. TXFLOOR keeps the legacy 'TXFLOOR' bucket so existing stock still shows.
+function buildSites(flat){
+  const skids=[];
+  for(const area of ['LAB','BHP']){
+    for(let n=1;n<=21;n++) skids.push(area+' skid '+n);
+    for(const L of ['A','B','C','D','E','F','G','H']) skids.push(area+' skid '+L);
+  }
+  return [
+    { id:'main',    name:'Main Racks', locations: flat.filter(l=>l!=='TXFLOOR'), match:[] },
+    // 'TXFLOOR' stays as a hidden match alias so existing stock (all logged under
+    // loc 'TXFLOOR') still shows here, even though it's no longer a pickable location.
+    { id:'txfloor', name:'TXFLOOR',    locations: ['LAB area','BHP area', ...skids], match:['TXFLOOR'] }
+  ];
+}
+function curSite(){ return sites.find(s=>s.id===currentSite) || sites[0] || {id:'main',name:'Main Racks',locations:[]}; }
+function locSite(loc){ loc=(loc||'').trim(); if(!loc) return 'main'; for(const s of sites){ if(s.locations.includes(loc) || (s.match&&s.match.includes(loc))) return s.id; } return 'main'; }
+function movementInSite(e,id){
+  if(e.type==='in')  return locSite(e.to_loc)===id;
+  if(e.type==='out') return locSite(e.from_loc)===id;
+  return locSite(e.from_loc)===id || locSite(e.to_loc)===id;
+}
+function siteMovements(){ return movements.filter(e=>movementInSite(e,currentSite)); }
+function applySite(){
+  const s=curSite(); currentSite=s.id; locations=s.locations;
+  renderSiteSwitcher(); renderLocations(); updateDatalist();
+}
+function switchSite(id){ currentSite=id; applySite(); renderAll(); }
+function renderSiteSwitcher(){
+  const el=$('site-switcher'); if(!el) return;
+  el.innerHTML=sites.map(s=>`<button class="site-pill${s.id===currentSite?' active':''}" onclick="switchSite('${s.id}')">${esc(s.name)}</button>`).join('');
 }
 
 // ── LOCATIONS ──
@@ -392,26 +447,28 @@ function updateDatalist() {
 }
 
 function renderLocations() {
+  const nm=$('loc-site-name'); if(nm) nm.textContent=curSite().name;
   const list = $('loc-list-display');
   if(!locations.length){ list.innerHTML='<span style="font-size:12px;color:var(--text-3)">No locations added yet.</span>'; return; }
   list.innerHTML = locations.map((l,i)=>`<span class="loc-tag">${esc(l)}<button onclick="removeLocation(${i})" title="Remove">✕</button></span>`).join('');
 }
 
+// Prototype: location edits stay in memory for the current site (no DB write).
 async function addLocation() {
   const inp=$('new-loc');
   const val=inp.value.trim();
   if(!val) return;
-  if(locations.map(l=>l.toLowerCase()).includes(val.toLowerCase())){ inp.value=''; return; }
-  locations.push(val);
+  const s=curSite();
+  if(s.locations.map(l=>l.toLowerCase()).includes(val.toLowerCase())){ inp.value=''; return; }
+  s.locations.push(val); locations=s.locations;
   inp.value='';
-  await setSetting('locations', JSON.stringify(locations));
   renderLocations(); updateDatalist();
 }
 
 async function removeLocation(i) {
-  if(!confirm('Remove "'+locations[i]+'" from the approved list?')) return;
-  locations.splice(i,1);
-  await setSetting('locations', JSON.stringify(locations));
+  const s=curSite();
+  if(!confirm('Remove "'+s.locations[i]+'" from '+s.name+'?')) return;
+  s.locations.splice(i,1); locations=s.locations;
   renderLocations(); updateDatalist();
 }
 
@@ -469,7 +526,7 @@ function parseMoveNotes(s){
 function getPartBuckets(part){
   if(!part) return [];
   const b=getAllStock().buckets[part]||{};
-  return Object.values(b).filter(x=>x.qty>0)
+  return Object.values(b).filter(x=>x.qty>0 && locSite(x.loc)===currentSite)
     .sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
 }
 function fillLocSelect(selId, part, emptyPartMsg, noneMsg){
@@ -562,71 +619,53 @@ async function delEntry(id) {
 }
 
 // ── RENDER ──
-// Stock is computed per distinct location + note (a "bucket"), so each spot
-// (e.g. TXFLOOR - skid 7 vs TXFLOOR - skid 11) shows separately. When a part
-// leaves or moves, its note may carry extra text (like an order #), so we match
-// it back to the bucket it came from by its leading note text.
+// Stock is computed per LOCATION only. Notes are optional and purely informational
+// — they never affect the math. A location's total is simply all credits
+// (in / move-to) minus all debits (out / move-from), so it reconciles by
+// construction and a note can never break or block a calculation.
 function getAllStock() {
-  const evts=[...movements].reverse(); // oldest first
-  const store={};   // store[part][loc] = [ {note, qty}, ... ]
   const totals={};
-  const listFor=(part,loc)=>{ store[part]=store[part]||{}; store[part][loc]=store[part][loc]||[]; return store[part][loc]; };
-  const credit=(part,loc,note,q)=>{
-    const L=listFor(part,loc); note=note||'';
-    let b=L.find(x=>x.note===note);
-    if(!b){ b={note,qty:0}; L.push(b); }
-    b.qty+=q;
-  };
-  const debit=(part,loc,note,q)=>{
-    const L=listFor(part,loc); note=note||''; let rem=q;
-    // 1) exact note match with stock
-    const ex=L.find(x=>x.note===note && x.qty>0);
-    if(ex){ const t=Math.min(ex.qty,rem); ex.qty-=t; rem-=t; }
-    // 2) a bucket whose note this note begins with (e.g. note + " ORDER #123"), longest first
-    if(rem>0){
-      const pf=L.filter(x=>x.note && note.indexOf(x.note)===0 && x.qty>0).sort((a,b)=>b.note.length-a.note.length);
-      for(const x of pf){ if(rem<=0) break; const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; }
-    }
-    // 3) otherwise draw down whatever is at this location (oldest first)
-    if(rem>0){
-      for(const x of L){ if(rem<=0) break; if(x.qty>0){ const t=Math.min(x.qty,rem); x.qty-=t; rem-=t; } }
-    }
-    // 4) truly oversold: leave a negative on the note bucket
-    if(rem>0){ let nb=L.find(x=>x.note===note); if(!nb){ nb={note,qty:0}; L.push(nb); } nb.qty-=rem; }
-  };
-  evts.forEach(e=>{
+  const store={};   // store[part][loc] = net qty
+  const bump=(part,loc,q)=>{ store[part]=store[part]||{}; store[part][loc]=(store[part][loc]||0)+q; };
+  movements.forEach(e=>{
     if(totals[e.part]===undefined) totals[e.part]=0;
-    if(e.type==='in'){ totals[e.part]+=e.qty; credit(e.part,e.to_loc,e.notes||'',e.qty); }
-    else if(e.type==='out'){ totals[e.part]-=e.qty; debit(e.part,e.from_loc,e.notes||'',e.qty); }
-    else if(e.type==='move'){ const pn=parseMoveNotes(e.notes); debit(e.part,e.from_loc,pn.fromNote||'',e.qty); credit(e.part,e.to_loc,pn.toNote||'',e.qty); }
+    if(e.type==='in'){ totals[e.part]+=e.qty; bump(e.part,e.to_loc,e.qty); }
+    else if(e.type==='out'){ totals[e.part]-=e.qty; bump(e.part,e.from_loc,-e.qty); }
+    else if(e.type==='move'){ bump(e.part,e.from_loc,-e.qty); bump(e.part,e.to_loc,e.qty); }
   });
   const buckets={};
   Object.keys(store).forEach(part=>{
     buckets[part]={};
-    Object.keys(store[part]).forEach(loc=>{
-      store[part][loc].forEach(b=>{ buckets[part][loc+''+b.note]={loc,note:b.note,qty:b.qty}; });
-    });
+    Object.keys(store[part]).forEach(loc=>{ buckets[part][loc]={loc,note:'',qty:store[part][loc]}; });
   });
   return {totals,buckets};
 }
 
 function renderStock() {
   const q=$('stock-search').value.trim().toLowerCase();
-  const {totals,buckets}=getAllStock();
-  const parts=Object.keys(totals).filter(p=>!q||p.toLowerCase().includes(q)).sort();
+  const {buckets}=getAllStock();
+  const rows=[];
+  Object.keys(buckets).forEach(p=>{
+    if(q && !p.toLowerCase().includes(q)) return;
+    const inSite=Object.values(buckets[p]).filter(b=>locSite(b.loc)===currentSite);
+    if(!inSite.length) return;
+    const total=inSite.reduce((s,b)=>s+b.qty,0);
+    const bl=inSite.filter(b=>b.qty>0).sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
+    if(!bl.length && total===0) return;
+    rows.push({p,total,bl});
+  });
+  rows.sort((a,b)=>a.p.localeCompare(b.p));
   const tbody=$('stock-tbody');
-  if(!parts.length){tbody.innerHTML='<tr><td colspan="3" class="empty">No parts logged yet</td></tr>';return;}
-  tbody.innerHTML=parts.map(p=>{
-    const total=totals[p];
-    const bl=Object.values(buckets[p]).filter(b=>b.qty>0).sort((a,b)=>a.loc===b.loc?String(a.note).localeCompare(String(b.note)):a.loc.localeCompare(b.loc));
-    const locStr=bl.length?bl.map(b=>`<div class="loc-block"><span class="loc-pill">${esc(b.loc)}: ${b.qty}</span>${b.note?`<div class="loc-note">${esc(b.note)}</div>`:''}</div>`).join(''):'<span style="color:var(--text-3);font-size:12px">—</span>';
-    return `<tr><td class="part-strong">${esc(p)}</td><td><span class="stock-qty ${total>0?'qty-pos':total<0?'qty-neg':'qty-neu'}">${total}</span></td><td>${locStr}</td></tr>`;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="3" class="empty">No stock at '+esc(curSite().name)+'</td></tr>';return;}
+  tbody.innerHTML=rows.map(r=>{
+    const locStr=r.bl.length?r.bl.map(b=>`<div class="loc-block"><span class="loc-pill">${esc(b.loc)}: ${b.qty}</span>${b.note?`<div class="loc-note">${esc(b.note)}</div>`:''}</div>`).join(''):'<span style="color:var(--text-3);font-size:12px">—</span>';
+    return `<tr><td class="part-strong">${esc(r.p)}</td><td><span class="stock-qty ${r.total>0?'qty-pos':r.total<0?'qty-neg':'qty-neu'}">${r.total}</span></td><td>${locStr}</td></tr>`;
   }).join('');
 }
 
 function renderHistory() {
   const q=$('hist-search').value.trim().toLowerCase();
-  const vis=movements.filter(e=>!q||(e.part||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q)||(e.from_loc||'').toLowerCase().includes(q)||(e.to_loc||'').toLowerCase().includes(q));
+  const vis=siteMovements().filter(e=>!q||(e.part||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q)||(e.from_loc||'').toLowerCase().includes(q)||(e.to_loc||'').toLowerCase().includes(q));
   const tbody=$('hist-tbody');
   if(!vis.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No entries</td></tr>';return;}
   tbody.innerHTML=vis.map(e=>{
@@ -647,10 +686,11 @@ function renderHistory() {
 }
 
 function renderStats(){
-  const parts=new Set(movements.map(e=>e.part)).size;
+  const sm=siteMovements();
+  const parts=new Set(sm.map(e=>e.part)).size;
   const today=new Date().toDateString();
-  const todayCount=movements.filter(e=>new Date(e.created_at).toDateString()===today).length;
-  $('s-parts').textContent=parts; $('s-moves').textContent=movements.length; $('s-today').textContent=todayCount;
+  const todayCount=sm.filter(e=>new Date(e.created_at).toDateString()===today).length;
+  $('s-parts').textContent=parts; $('s-moves').textContent=sm.length; $('s-today').textContent=todayCount;
 }
 
 function renderAll(){ renderStats(); renderStock(); renderHistory(); }
