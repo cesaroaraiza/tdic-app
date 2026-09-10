@@ -300,7 +300,7 @@
       <div class="form-card">
         <div class="settings-section">
           <h3>Locations &mdash; <span id="loc-site-name">this site</span></h3>
-          <p>Valid locations for the selected site. The app only accepts these when logging here. Use the toggle at the top to switch sites. <span style="color:var(--text-3)">(Prototype: edits here aren't saved to the database yet.)</span></p>
+          <p>Valid locations for the selected site. The app only accepts these when logging here. Use the toggle at the top to switch sites. <span style="color:var(--text-3)">Changes save automatically and are shared with anyone using the app.</span></p>
           <div class="loc-list" id="loc-list-display"></div>
           <div class="add-loc-row">
             <input id="new-loc" placeholder="" onkeydown="if(event.key==='Enter')addLocation()" />
@@ -399,12 +399,26 @@ async function loadMovements() {
 
 async function loadLocations() {
   try {
-    const v = await getSetting('locations');
-    const flat = v ? JSON.parse(v) : [];
-    if(!sites.length){ sites = buildSites(flat); }
-    else { const m=sites.find(s=>s.id==='main'); if(m) m.locations = flat.filter(l=>l!=='TXFLOOR'); }
+    // 'sites' (the full per-site location config) is the source of truth once it
+    // exists. First run: seed it from the legacy 'locations' key + the code default.
+    const sv = await getSetting('sites');
+    if(sv){
+      sites = JSON.parse(sv);
+      sites.forEach(s=>{ if(!s.match) s.match=[]; });
+    } else {
+      const v = await getSetting('locations');
+      const flat = v ? JSON.parse(v) : [];
+      sites = buildSites(flat);
+    }
     applySite();
-  } catch(e){ sites=[]; locations=[]; }
+  } catch(e){ if(!sites.length){ sites = buildSites([]); } applySite(); }
+}
+
+// Persist the full per-site location config to the database (shared across users).
+async function saveSites() {
+  try {
+    await setSetting('sites', JSON.stringify(sites));
+  } catch(e){ alert('Could not save locations: '+e.message); }
 }
 
 // ── SITES (prototype: TXFLOOR promoted to its own site with its own locations) ──
@@ -453,7 +467,7 @@ function renderLocations() {
   list.innerHTML = locations.map((l,i)=>`<span class="loc-tag">${esc(l)}<button onclick="removeLocation(${i})" title="Remove">✕</button></span>`).join('');
 }
 
-// Prototype: location edits stay in memory for the current site (no DB write).
+// Location edits for the current site, saved to the database (shared across users).
 async function addLocation() {
   const inp=$('new-loc');
   const val=inp.value.trim();
@@ -463,6 +477,7 @@ async function addLocation() {
   s.locations.push(val); locations=s.locations;
   inp.value='';
   renderLocations(); updateDatalist();
+  await saveSites();
 }
 
 async function removeLocation(i) {
@@ -470,6 +485,7 @@ async function removeLocation(i) {
   if(!confirm('Remove "'+s.locations[i]+'" from '+s.name+'?')) return;
   s.locations.splice(i,1); locations=s.locations;
   renderLocations(); updateDatalist();
+  await saveSites();
 }
 
 function isValidLoc(val) {
